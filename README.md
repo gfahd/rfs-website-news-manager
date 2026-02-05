@@ -1,5 +1,26 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Google OAuth setup (fix "Error 401: invalid_client")
+
+If you see **Access blocked: Authorization Error** or **Error 401: invalid_client** when signing in with Google:
+
+1. **Create OAuth credentials**
+   - Go to [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials**.
+   - Create a project or select one → **Create Credentials** → **OAuth client ID**.
+   - If asked, configure the **OAuth consent screen** (External, add your email as test user).
+
+2. **Create a Web application client**
+   - Application type: **Web application**.
+   - **Authorized redirect URIs** → Add:
+     - `http://localhost:3000/api/auth/callback/google` (local)
+     - For production: `https://admin.redflagsecurity.ca/api/auth/callback/google`
+
+3. **Copy credentials into `.env.local`**
+   - Replace the placeholders with the real values:
+     - `GOOGLE_CLIENT_ID=` (paste your Client ID)
+     - `GOOGLE_CLIENT_SECRET=` (paste your Client secret)
+   - Restart the dev server (`npm run dev`).
+
 ## Getting Started
 
 First, run the development server:
