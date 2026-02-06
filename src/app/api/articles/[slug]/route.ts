@@ -46,10 +46,14 @@ export async function PUT(
     category,
     publishedAt,
     coverImage,
-    tags,
+    tags = [],
+    seoKeywords = [],
     featured,
     content,
   } = body;
+
+  const tagsArray = Array.isArray(tags) ? tags : [];
+  const seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : [];
 
   // Build markdown content
   const markdown = `---
@@ -58,7 +62,8 @@ excerpt: "${excerpt}"
 category: "${category}"
 publishedAt: "${publishedAt}"
 coverImage: "${coverImage || ""}"
-tags: [${(tags as string[]).map((t: string) => `"${t}"`).join(", ")}]
+tags: [${tagsArray.map((t: string) => `"${t}"`).join(", ")}]
+seoKeywords: [${seoKeywordsArray.map((k: string) => `"${k}"`).join(", ")}]
 author: "Red Flag Security Team"
 featured: ${featured || false}
 ---
