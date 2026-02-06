@@ -7,7 +7,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Plus, Search, Trash2, Star, Clock, Eye, X } from "lucide-react";
 import Link from "next/link";
@@ -42,7 +42,7 @@ function CategoryBadge({ category }: { category: string }) {
   );
 }
 
-export default function ArticlesPage() {
+function ArticlesPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -312,5 +312,19 @@ export default function ArticlesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ArticlesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-950">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
+        </div>
+      }
+    >
+      <ArticlesPageContent />
+    </Suspense>
   );
 }
