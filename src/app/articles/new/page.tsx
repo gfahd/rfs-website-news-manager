@@ -130,10 +130,9 @@ export default function NewArticlePage() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen bg-slate-950">
       <Sidebar />
-
-      <main className="flex-1 p-8">
+      <main className="ml-64 p-8">
         <form onSubmit={handleSubmit}>
           {/* Header */}
           <div className="flex items-center justify-between mb-8">

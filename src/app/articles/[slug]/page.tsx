@@ -185,19 +185,19 @@ export default function EditArticlePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen">
+      <div className="min-h-screen bg-slate-950">
         <Sidebar />
-        <main className="flex-1 p-8 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <main className="ml-64 flex min-h-screen items-center justify-center p-8">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-red-500"></div>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen bg-slate-950">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="ml-64 p-8">
         <form onSubmit={handleSubmit}>
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
