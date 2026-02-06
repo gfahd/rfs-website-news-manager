@@ -199,6 +199,7 @@ function parseArticle(filename: string, content: string) {
     publishedAt: data.publishedAt || new Date().toISOString(),
     coverImage: data.coverImage || "",
     tags: data.tags || [],
+    seoKeywords: data.seoKeywords || [],
     author: data.author || "Red Flag Security Team",
     featured: data.featured || false,
     content: body,

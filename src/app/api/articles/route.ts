@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     publishedAt,
     coverImage,
     tags = [],
+    seoKeywords = [],
     featured,
     content,
   } = body;
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
   const filename = `${date}-${slug}`;
 
   const tagsArray = Array.isArray(tags) ? tags : [];
+  const seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : [];
   const markdown = `---
 title: "${title}"
 excerpt: "${excerpt}"
@@ -48,6 +50,7 @@ category: "${category}"
 publishedAt: "${publishedAt}"
 coverImage: "${coverImage || ""}"
 tags: [${tagsArray.map((t: string) => `"${t}"`).join(", ")}]
+seoKeywords: [${seoKeywordsArray.map((k: string) => `"${k}"`).join(", ")}]
 author: "Red Flag Security Team"
 featured: ${featured || false}
 ---
