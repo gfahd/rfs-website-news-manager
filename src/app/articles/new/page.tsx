@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Eye,
   Send,
+  Save,
   Sparkles,
   Link as LinkIcon,
   Upload,
@@ -303,6 +304,18 @@ export default function NewArticlePage() {
     setter((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const buildPayload = () => ({
+    title: title || "Untitled",
+    excerpt,
+    content,
+    category,
+    publishedAt: new Date(publishedAt).toISOString(),
+    coverImage,
+    tags,
+    seoKeywords,
+    featured,
+  });
+
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -310,17 +323,7 @@ export default function NewArticlePage() {
       const res = await fetch("/api/articles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          excerpt,
-          content,
-          category,
-          publishedAt: new Date(publishedAt).toISOString(),
-          coverImage,
-          tags,
-          seoKeywords,
-          featured,
-        }),
+        body: JSON.stringify({ ...buildPayload(), draft: false }),
       });
       if (res.ok) {
         router.push("/articles");
@@ -330,6 +333,32 @@ export default function NewArticlePage() {
       }
     } catch (error) {
       showError("Failed to save article");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDraft = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      showError("Enter a title to save as draft");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...buildPayload(), draft: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.slug) {
+        router.push(`/articles/${data.slug}`);
+      } else {
+        showError(data.error || "Failed to save draft");
+      }
+    } catch (error) {
+      showError("Failed to save draft");
     } finally {
       setSaving(false);
     }
@@ -415,6 +444,15 @@ export default function NewArticlePage() {
               >
                 <Eye className="w-4 h-4" />
                 Preview
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving..." : "Save as draft"}
               </button>
               <button
                 type="submit"

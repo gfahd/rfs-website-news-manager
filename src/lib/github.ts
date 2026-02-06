@@ -202,6 +202,7 @@ function parseArticle(filename: string, content: string) {
     seoKeywords: data.seoKeywords || [],
     author: data.author || "Red Flag Security Team",
     featured: data.featured || false,
+    draft: data.draft ?? false,
     content: body,
   };
 }

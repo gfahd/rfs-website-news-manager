@@ -53,12 +53,14 @@ export async function POST(request: Request) {
 
     const path = await uploadImage(finalFilename, content, mimeType);
     return NextResponse.json({ path, filename: finalFilename });
-  } catch (err) {
+  } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Upload failed";
+    const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
+    const is401 = status === 401 || message.includes("Bad credentials");
     console.error("Upload error:", err);
     return NextResponse.json(
-      { error: "Upload failed", details: message },
-      { status: 500 }
+      { error: is401 ? "GitHub authentication failed. Check GITHUB_TOKEN in .env.local." : "Upload failed", details: message },
+      { status: is401 ? 401 : 500 }
     );
   }
 }

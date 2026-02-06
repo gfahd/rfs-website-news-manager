@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Eye,
   Send,
+  Save,
   Sparkles,
   Link as LinkIcon,
   Upload,
@@ -80,6 +81,7 @@ export default function EditArticlePage() {
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // AI Generate panel state
   const [aiTopic, setAITopic] = useState("");
@@ -346,6 +348,18 @@ export default function EditArticlePage() {
     setter((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const buildPayload = () => ({
+    title,
+    excerpt,
+    content,
+    category,
+    publishedAt: new Date(publishedAt).toISOString(),
+    coverImage,
+    tags,
+    seoKeywords,
+    featured,
+  });
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -353,17 +367,7 @@ export default function EditArticlePage() {
       const res = await fetch(`/api/articles/${encodeURIComponent(slug)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          excerpt,
-          content,
-          category,
-          publishedAt: new Date(publishedAt).toISOString(),
-          coverImage,
-          tags,
-          seoKeywords,
-          featured,
-        }),
+        body: JSON.stringify({ ...buildPayload(), draft: false }),
       });
       if (res.ok) {
         router.push("/articles");
@@ -373,6 +377,30 @@ export default function EditArticlePage() {
       }
     } catch (error) {
       showError("Failed to update article");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDraft = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/articles/${encodeURIComponent(slug)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...buildPayload(), draft: true }),
+      });
+      if (res.ok) {
+        setErrorToast(null);
+        setSuccessToast("Draft saved");
+        setTimeout(() => setSuccessToast(null), 2000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showError(data.error || "Failed to save draft");
+      }
+    } catch (error) {
+      showError("Failed to save draft");
     } finally {
       setSaving(false);
     }
@@ -437,6 +465,12 @@ export default function EditArticlePage() {
             </button>
           </div>
         )}
+        {/* Success toast (e.g. Draft saved) */}
+        {successToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 bg-emerald-500/95 text-white rounded-lg shadow-lg transition-all duration-200">
+            <span>{successToast}</span>
+          </div>
+        )}
 
         <form onSubmit={handleUpdate}>
           {/* Top toolbar */}
@@ -488,6 +522,15 @@ export default function EditArticlePage() {
               >
                 <Eye className="w-4 h-4" />
                 Preview
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving..." : "Save as draft"}
               </button>
               <button
                 type="submit"

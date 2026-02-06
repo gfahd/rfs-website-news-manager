@@ -49,6 +49,7 @@ export async function PUT(
     tags = [],
     seoKeywords = [],
     featured,
+    draft = false,
     content,
   } = body;
 
@@ -66,6 +67,7 @@ tags: [${tagsArray.map((t: string) => `"${t}"`).join(", ")}]
 seoKeywords: [${seoKeywordsArray.map((k: string) => `"${k}"`).join(", ")}]
 author: "Red Flag Security Team"
 featured: ${featured || false}
+draft: ${draft === true}
 ---
 
 ${content}
