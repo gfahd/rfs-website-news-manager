@@ -224,6 +224,16 @@ export default function DashboardPage() {
                       {article.title}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                      {article.draft ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                          <Clock className="h-3 w-3" />
+                          Draft
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-400">
+                          Published
+                        </span>
+                      )}
                       <CategoryBadge category={article.category} />
                       <span>
                         {new Date(article.publishedAt).toLocaleDateString()}

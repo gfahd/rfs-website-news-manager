@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Plus, Search, Trash2, Star } from "lucide-react";
+import { Plus, Search, Trash2, Star, Clock, Eye } from "lucide-react";
 import Link from "next/link";
 
 const CATEGORY_PILLS: { value: string; label: string }[] = [
@@ -211,7 +211,18 @@ export default function ArticlesPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                  {article.draft ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                      <Clock className="h-3.5 w-3.5" />
+                      Draft
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-400" title="Published">
+                      <Eye className="h-3.5 w-3.5" />
+                      Published
+                    </span>
+                  )}
                   <CategoryBadge category={article.category} />
                   <span className="text-sm text-slate-500">
                     {new Date(article.publishedAt).toLocaleDateString()}
