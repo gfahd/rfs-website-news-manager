@@ -86,7 +86,11 @@ export default function MediaPage() {
         }
         await fetchImages();
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Upload failed";
+        let message = error instanceof Error ? error.message : "Upload failed";
+        if (message.toLowerCase().includes("bad credentials")) {
+          message =
+            "GitHub token is invalid or expired. Create a new Personal Access Token with repo scope and set GITHUB_TOKEN in your hosting environment (e.g. Vercel).";
+        }
         setUploadError(message);
         console.error("Upload failed:", error);
       } finally {
