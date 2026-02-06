@@ -13,7 +13,7 @@ This document describes what the app does, which tools it uses, which settings i
 - **Manage images** used in articles: upload to the same repo and pick from existing ones when editing articles.
 - **View a dashboard** with article counts and quick links.
 
-There is **no database**. All content lives in **GitHub**: articles under `content/news/*.md`, images under `public/images/news/`. The app is the UI and API layer that reads/writes that repo via the GitHub API.
+There is **no database**. All content lives in **GitHub**: articles under `out/news/*.md`, images under `public/images/news/`. The app is the UI and API layer that reads/writes that repo via the GitHub API.
 
 **Live website:** The public site (e.g. redflagsecurity.ca) is a separate deployment. It must read from the **same repo and branch** (`main`) and **rebuild/redeploy** when content changes so new articles appear.
 
@@ -107,7 +107,7 @@ src/
 
 ### 6.1 Where Content Lives (GitHub)
 
-- **Articles**: `content/news/<filename>.md`.  
+- **Articles**: `out/news/<filename>.md`.  
   - Filename format: `YYYY-MM-DD-<slug>.md` (e.g. `2025-02-05-my-article.md`).  
   - Slug is derived by stripping date prefix and `.md`.  
   - File = YAML frontmatter + Markdown body (parsed with `gray-matter` in `src/lib/github.ts`).
