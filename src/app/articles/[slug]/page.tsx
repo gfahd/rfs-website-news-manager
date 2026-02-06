@@ -23,6 +23,7 @@ import {
   Loader2,
   Trash2,
 } from "lucide-react";
+import { getStoredGeminiModel } from "@/lib/settings";
 
 const CATEGORIES = [
   { value: "threat-intel", label: "Threat Intelligence" },
@@ -64,6 +65,9 @@ export default function EditArticlePage() {
     new Date().toISOString().split("T")[0]
   );
   const [model, setModel] = useState("gemini-2.5-flash");
+  useEffect(() => {
+    setModel(getStoredGeminiModel());
+  }, []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingAction, setGeneratingAction] = useState<string>("");
 
