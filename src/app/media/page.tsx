@@ -23,6 +23,7 @@ export default function MediaPage() {
   const [uploading, setUploading] = useState(false);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fetchImages = useCallback(async () => {
     try {
@@ -55,6 +56,7 @@ export default function MediaPage() {
       );
       if (!toUpload.length) return;
 
+      setUploadError(null);
       setUploading(true);
       try {
         for (const file of toUpload) {
@@ -76,10 +78,16 @@ export default function MediaPage() {
               mimeType: file.type,
             }),
           });
-          if (!res.ok) throw new Error("Upload failed");
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = data?.details || data?.error || "Upload failed";
+            throw new Error(msg);
+          }
         }
         await fetchImages();
       } catch (error) {
+        const message = error instanceof Error ? error.message : "Upload failed";
+        setUploadError(message);
         console.error("Upload failed:", error);
       } finally {
         setUploading(false);
@@ -134,6 +142,12 @@ export default function MediaPage() {
             {loading ? "…" : images.length}
           </span>
         </div>
+
+        {uploadError && (
+          <div className="mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
+            {uploadError}
+          </div>
+        )}
 
         {/* Upload zone */}
         <div
