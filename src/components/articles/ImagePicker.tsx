@@ -39,7 +39,7 @@ export function ImagePicker({
       {coverImage ? (
         <div className="relative aspect-[2/1] rounded-lg overflow-hidden bg-slate-800 border border-slate-700">
           <img
-            src={coverImage}
+            src={coverImage.startsWith("/images/news/") ? `/api/serve-image?path=${encodeURIComponent(coverImage)}` : coverImage}
             alt="Cover"
             className="w-full h-full object-cover"
           />
