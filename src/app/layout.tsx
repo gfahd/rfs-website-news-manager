@@ -6,7 +6,7 @@ import { AuthProvider } from "@/components/layout/auth-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Red Flag Security - Content Manager",
+  title: "Red Flag Security - RFS Content Manager",
   description: "News & Insights Admin Panel",
 };
 

@@ -35,7 +35,7 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold">
               <span className="text-red-500">RED</span>FLAG SECURITY
             </h1>
-            <p className="text-slate-400 mt-2">Content Manager</p>
+            <p className="text-slate-400 mt-2">RFS Content Manager</p>
           </div>
 
           {/* Login Button */}

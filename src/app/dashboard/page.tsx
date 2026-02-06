@@ -118,12 +118,17 @@ export default function DashboardPage() {
       <Sidebar />
 
       <main className="ml-64 min-h-screen p-8">
-        {/* Welcome */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">
-            Welcome back, {firstName}
-          </h1>
-          <p className="mt-1 text-slate-500">{today}</p>
+        {/* Header: welcome left, app name right */}
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              Welcome back, {firstName}
+            </h1>
+            <p className="mt-1 text-slate-500">{today}</p>
+          </div>
+          <div className="text-xl font-semibold text-white">
+            RFS Content Manager
+          </div>
         </div>
 
         {/* Stats */}

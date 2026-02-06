@@ -10,7 +10,6 @@ import {
   Image,
   Settings,
   LogOut,
-  Shield,
 } from "lucide-react";
 
 const navigation = [
@@ -31,17 +30,13 @@ export function Sidebar() {
       <div className="border-b border-slate-800 px-6 py-6">
         <Link
           href="/dashboard"
-          className="flex items-center gap-3 transition-opacity hover:opacity-90"
+          className="block transition-opacity hover:opacity-90"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500">
-            <Shield className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <div className="font-bold text-white">
-              <span className="text-red-500">RED</span>FLAG
-            </div>
-            <div className="text-xs text-slate-500">Content Manager</div>
-          </div>
+          <img
+            src="/red-flag-security-logo.webp"
+            alt="Red Flag Security"
+            className="h-10 w-auto object-contain"
+          />
         </Link>
       </div>
 
