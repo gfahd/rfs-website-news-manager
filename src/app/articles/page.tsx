@@ -217,7 +217,9 @@ export default function ArticlesPage() {
                     {new Date(article.publishedAt).toLocaleDateString()}
                   </span>
                   {article.featured && (
-                    <Star className="w-5 h-5 text-amber-400 fill-amber-400" title="Featured" />
+                    <span title="Featured">
+                      <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                    </span>
                   )}
                   <button
                     onClick={() =>
