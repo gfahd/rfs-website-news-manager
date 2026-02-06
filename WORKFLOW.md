@@ -15,6 +15,8 @@ This document describes what the app does, which tools it uses, which settings i
 
 There is **no database**. All content lives in **GitHub**: articles under `content/news/*.md`, images under `public/images/news/`. The app is the UI and API layer that reads/writes that repo via the GitHub API.
 
+**Live website:** The public site (e.g. redflagsecurity.ca) is a separate deployment. It must read from the **same repo and branch** (`main`) and **rebuild/redeploy** when content changes so new articles appear.
+
 ---
 
 ## 2. Tech Stack & Tools

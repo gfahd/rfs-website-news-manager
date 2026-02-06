@@ -390,6 +390,7 @@ export default function NewArticlePage() {
                 >
                   <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                   <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
                 </select>
               </div>
               <button
@@ -834,6 +835,7 @@ export default function NewArticlePage() {
                   >
                     <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                     <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
                   </select>
                 </div>
               </div>

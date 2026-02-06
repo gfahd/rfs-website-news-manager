@@ -22,7 +22,7 @@ const VALID_ACTIONS = [
 ] as const;
 
 type Action = (typeof VALID_ACTIONS)[number];
-type ModelId = "gemini-2.5-flash" | "gemini-2.0-flash";
+type ModelId = "gemini-2.5-flash" | "gemini-2.0-flash" | "gemini-3-flash-preview";
 
 const GENERATE_ARTICLE_SYSTEM = `You are a professional content writer for Red Flag Security, a Canadian company that installs alarm systems, CCTV cameras, access control systems, and provides 24/7 alarm monitoring. Write informative, engaging blog articles. Use proper markdown formatting with ## for headings, **bold** for emphasis, and clear paragraph structure. Include an introduction, multiple sections with headings, and a conclusion. Do NOT include the title as an H1 — just the body content. Include internal link suggestions at the end formatted as: 'Internal Links: [text](url suggestion)' and external reference suggestions as: 'External Links: [text](url suggestion)'.`;
 
@@ -82,7 +82,11 @@ export async function POST(request: Request) {
   }
 
   const modelId: ModelId =
-    model === "gemini-2.0-flash" ? "gemini-2.0-flash" : "gemini-2.5-flash";
+    model === "gemini-2.0-flash"
+      ? "gemini-2.0-flash"
+      : model === "gemini-3-flash-preview"
+        ? "gemini-3-flash-preview"
+        : "gemini-2.5-flash";
 
   try {
     if (action === "generate_article") {
