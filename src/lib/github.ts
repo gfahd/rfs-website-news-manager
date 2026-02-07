@@ -14,7 +14,7 @@ export async function getArticles() {
     const { data } = await octokit.repos.getContent({
       owner: OWNER,
       repo: REPO,
-      path: "out/news",
+      path: "content/news",
       ref: BRANCH,
     });
 
@@ -69,7 +69,7 @@ export async function saveArticle(
   content: string,
   message: string
 ) {
-  const path = `out/news/${slug}.md`;
+  const path = `content/news/${slug}.md`;
 
   let sha: string | undefined;
   try {
@@ -98,7 +98,7 @@ export async function saveArticle(
 }
 
 export async function deleteArticle(slug: string) {
-  const path = `out/news/${slug}.md`;
+  const path = `content/news/${slug}.md`;
 
   const { data } = await octokit.repos.getContent({
     owner: OWNER,

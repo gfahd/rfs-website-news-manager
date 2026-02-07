@@ -2,7 +2,7 @@
 
 ## What’s going wrong
 
-1. **This admin app** saves each article as a **single `.md` file** in the repo at `out/news/YYYY-MM-DD-slug.md` (e.g. `out/news/2026-02-06-redflag-security-doorbell-smart-protection-for-your-canadian-home.md`).
+1. **This admin app** saves each article as a **single `.md` file** in the repo at `content/news/YYYY-MM-DD-slug.md` (e.g. `content/news/2026-02-06-redflag-security-doorbell-smart-protection-for-your-canadian-home.md`).
 2. **The live website** (e.g. new.redflagsecurity.ca) is a **statically built** site. At **build time** it reads those `.md` files and generates **one folder per article** with `index.html` and Next.js assets inside (e.g. `out/news/redflag-security-doorbell.../index.html`).
 3. When you publish from the admin, the new `.md` file is pushed to GitHub and may be synced to the server — so you see the `.md` file in the file manager. But the **HTML for that article was never generated**, because the main site hasn’t been rebuilt since you added the article. The live site only serves the static HTML that existed at the last build.
 
@@ -23,7 +23,7 @@ If the **main website** is a clone of the **same GitHub repo** that the admin wr
    cd path/to/main-website-project
    git pull origin main
    ```
-2. **Build** the main site. The build reads from the **local filesystem** (`out/news/*.md`), so it will now see the new file and generate `out/news/[slug]/index.html` for it:
+2. **Build** the main site. The build reads from the **local filesystem** (`content/news/*.md`), so it will now see the new file and generate `out/news/[slug]/index.html` for it:
    ```bash
    npm run build
    ```
@@ -49,7 +49,7 @@ For most setups, **Option 1 (same repo, pull then build)** is the simplest: one 
 
 ### 2. How are articles saved differently — build vs admin?
 
-- **This admin app** (redflag-news-admin) is the only thing that **creates/updates/deletes** article files. It writes **only** the `.md` files to the repo (`out/news/*.md`) and images to `public/images/news/`.
+- **This admin app** (redflag-news-admin) is the only thing that **creates/updates/deletes** article files. It writes **only** the `.md` files to the repo (`content/news/*.md`) and images to `public/images/news/`.
 - The **main website** does **not** write articles. Its **build process** **reads** the `.md` files and **outputs** the static site (e.g. `out/news/[slug]/index.html`). So:
   - **Admin** → writes `.md` (and images) to the repo.
   - **Main site build** → reads `.md` and generates the HTML the live site actually serves.
