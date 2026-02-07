@@ -370,7 +370,7 @@ export default function EditArticlePage() {
         body: JSON.stringify({ ...buildPayload(), draft: false }),
       });
       if (res.ok) {
-        router.push("/articles");
+        router.push("/articles?deploy=1");
       } else {
         const data = await res.json().catch(() => ({}));
         showError(data.error || "Failed to update article");
@@ -414,7 +414,7 @@ export default function EditArticlePage() {
       });
       if (res.ok) {
         setShowDeleteConfirm(false);
-        router.push("/articles");
+        router.push("/articles?deploy=1");
       } else {
         const data = await res.json().catch(() => ({}));
         showError(data.error || "Failed to delete article");

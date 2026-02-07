@@ -326,7 +326,7 @@ export default function NewArticlePage() {
         body: JSON.stringify({ ...buildPayload(), draft: false }),
       });
       if (res.ok) {
-        router.push("/articles");
+        router.push("/articles?deploy=1");
       } else {
         const data = await res.json().catch(() => ({}));
         showError(data.error || "Failed to save article");

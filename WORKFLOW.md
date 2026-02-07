@@ -13,9 +13,9 @@ This document describes what the app does, which tools it uses, which settings i
 - **Manage images** used in articles: upload to the same repo and pick from existing ones when editing articles.
 - **View a dashboard** with article counts and quick links.
 
-There is **no database**. All content lives in **GitHub**: articles under `out/news/*.md`, images under `public/images/news/`. The app is the UI and API layer that reads/writes that repo via the GitHub API.
+There is **no database**. All content lives in **GitHub**: articles under `content/news/*.md`, images under `public/images/news/`. The app is the UI and API layer that reads/writes that repo via the GitHub API.
 
-**Live website:** The public site (e.g. redflagsecurity.ca) is a separate deployment. It must read from the **same repo and branch** (`main`) and **rebuild/redeploy** when content changes so new articles appear.
+**Live website:** The public site (e.g. new.redflagsecurity.ca) is a **static** deployment. It serves pre-built HTML under `news/[slug]/` (one folder per article). That HTML is generated at **build time** from the same repo’s `content/news/*.md` files. So when you add or edit an article from this admin, the new `.md` is in the repo, but the live site will **not** show the new article until the main site is **rebuilt and redeployed**. See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for why new articles don’t appear and how to fix it (rebuild + deploy, and optional automation).
 
 ---
 
@@ -107,10 +107,13 @@ src/
 
 ### 6.1 Where Content Lives (GitHub)
 
-- **Articles**: `out/news/<filename>.md`.  
+- **Articles**: `content/news/<filename>.md`.  
   - Filename format: `YYYY-MM-DD-<slug>.md` (e.g. `2025-02-05-my-article.md`).  
   - Slug is derived by stripping date prefix and `.md`.  
-  - File = YAML frontmatter + Markdown body (parsed with `gray-matter` in `src/lib/github.ts`).
+  - File = YAML frontmatter + Markdown body (parsed with `gray-matter` in `src/lib/github.ts`).  
+  - **Categories, slug, keywords, etc.** live in the frontmatter; no separate store is needed.
+
+- **Who saves what**: Only **this admin app** writes article `.md` files and images to the repo. The **main (public) website** does not write content; its **build** reads `.md` and generates static HTML (`news/[slug]/index.html`). New articles appear on the live site only after the main site is **rebuilt and redeployed** — see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 - **Images**: `public/images/news/<filename>`.  
   - Uploaded as base64 via GitHub API; filenames get a timestamp prefix to avoid collisions.

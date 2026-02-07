@@ -6,10 +6,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Plus, Search, Trash2, Star, Clock, Eye } from "lucide-react";
+import { Plus, Search, Trash2, Star, Clock, Eye, X } from "lucide-react";
 import Link from "next/link";
 
 const CATEGORY_PILLS: { value: string; label: string }[] = [
@@ -45,12 +45,21 @@ function CategoryBadge({ category }: { category: string }) {
 export default function ArticlesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState<{ slug: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeployBanner, setShowDeployBanner] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("deploy") === "1") {
+      setShowDeployBanner(true);
+      router.replace("/articles", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -117,6 +126,25 @@ export default function ArticlesPage() {
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
       <main className="ml-64 p-6 md:p-8">
+        {/* Deploy reminder banner */}
+        {showDeployBanner && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium">Article saved to the repo.</p>
+              <p className="mt-1 text-sm text-amber-200/90">
+                It will appear on the live website only after you <strong>rebuild and redeploy</strong> the main site. See <code className="rounded bg-amber-500/20 px-1 py-0.5 text-sm">DEPLOYMENT.md</code> in the project for steps.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDeployBanner(false)}
+              className="shrink-0 rounded p-1 text-amber-300 hover:bg-amber-500/20 hover:text-amber-100"
+              aria-label="Dismiss"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
