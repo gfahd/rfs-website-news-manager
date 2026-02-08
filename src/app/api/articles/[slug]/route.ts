@@ -1,31 +1,20 @@
-// ============================================
-// FILE: src/app/api/articles/[slug]/route.ts
-// Single Article API
-// ============================================
-
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getArticle, saveArticle, deleteArticle } from "@/lib/github";
+import { getArticle, updateArticle, deleteArticle, triggerWebsiteRebuild, articleToFrontend } from "@/lib/supabase";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { slug } = await params;
   const article = await getArticle(slug);
-  
-  if (!article) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!article) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ article });
+  return NextResponse.json({ article: articleToFrontend(article) });
 }
 
 export async function PUT(
@@ -33,51 +22,34 @@ export async function PUT(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { slug } = await params;
+    const body = await request.json();
+    const status = body.draft ? "draft" : (body.status || "published");
+
+    const article = await updateArticle(slug, {
+      title: body.title,
+      excerpt: body.excerpt,
+      content: body.content,
+      category: body.category,
+      published_at: body.publishedAt,
+      cover_image: body.coverImage,
+      tags: body.tags,
+      seo_keywords: body.seoKeywords,
+      featured: body.featured,
+      status,
+    });
+
+    // Trigger website rebuild
+    await triggerWebsiteRebuild();
+
+    return NextResponse.json({ success: true, article: article ? articleToFrontend(article) : null });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to update article";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { slug } = await params;
-  const body = await request.json();
-  const {
-    title,
-    excerpt,
-    category,
-    publishedAt,
-    coverImage,
-    tags = [],
-    seoKeywords = [],
-    featured,
-    draft = false,
-    content,
-  } = body;
-
-  const tagsArray = Array.isArray(tags) ? tags : [];
-  const seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : [];
-
-  // Build markdown content
-  const markdown = `---
-title: "${title}"
-excerpt: "${excerpt}"
-category: "${category}"
-publishedAt: "${publishedAt}"
-coverImage: "${coverImage || ""}"
-tags: [${tagsArray.map((t: string) => `"${t}"`).join(", ")}]
-seoKeywords: [${seoKeywordsArray.map((k: string) => `"${k}"`).join(", ")}]
-author: "Red Flag Security Team"
-featured: ${featured || false}
-draft: ${draft === true}
----
-
-${content}
-`;
-
-  const existing = await getArticle(slug);
-  const fileStem = existing?.filename?.replace(/\.md$/, "") ?? slug;
-  await saveArticle(fileStem, markdown, `Update article: ${title}`);
-
-  return NextResponse.json({ success: true });
 }
 
 export async function DELETE(
@@ -85,18 +57,15 @@ export async function DELETE(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { slug } = await params;
+    await deleteArticle(slug);
+    await triggerWebsiteRebuild();
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to delete article";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { slug } = await params;
-  const existing = await getArticle(slug);
-  if (!existing?.filename) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  const fileStem = existing.filename.replace(/\.md$/, "");
-  await deleteArticle(fileStem);
-
-  return NextResponse.json({ success: true });
 }

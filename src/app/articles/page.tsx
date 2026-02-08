@@ -130,9 +130,9 @@ function ArticlesPageContent() {
         {showDeployBanner && (
           <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200">
             <div className="flex-1 min-w-0">
-              <p className="font-medium">Article saved to the repo.</p>
+              <p className="font-medium">Article saved to the database.</p>
               <p className="mt-1 text-sm text-amber-200/90">
-                It will appear on the live website only after you <strong>rebuild and redeploy</strong> the main site. See <code className="rounded bg-amber-500/20 px-1 py-0.5 text-sm">DEPLOYMENT.md</code> in the project for steps.
+                It’s stored in Supabase. If your live site reads from the same database, it may update automatically; otherwise a rebuild may be needed depending on your setup.
               </p>
             </div>
             <button

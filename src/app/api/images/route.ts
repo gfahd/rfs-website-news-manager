@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getImages } from "@/lib/github";
+import { getImages } from "@/lib/supabase";
 
 export async function GET() {
   const session = await getServerSession(authOptions);

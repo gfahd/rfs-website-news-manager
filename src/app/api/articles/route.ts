@@ -1,77 +1,48 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getArticles, saveArticle } from "@/lib/github";
+import { getArticles, createArticle, generateSlug, triggerWebsiteRebuild, articleToFrontend } from "@/lib/supabase";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const articles = await getArticles();
-  return NextResponse.json({ articles });
+  return NextResponse.json({ articles: articles.map(articleToFrontend) });
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
-  const {
-    title,
-    excerpt,
-    category,
-    publishedAt,
-    coverImage,
-    tags = [],
-    seoKeywords = [],
-    featured,
-    draft = false,
-    content,
-  } = body;
-
-  const date = new Date(publishedAt).toISOString().split("T")[0];
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  const filename = `${date}-${slug}`;
-
-  const tagsArray = Array.isArray(tags) ? tags : [];
-  const seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : [];
-  const markdown = `---
-title: "${title}"
-excerpt: "${excerpt}"
-category: "${category}"
-publishedAt: "${publishedAt}"
-coverImage: "${coverImage || ""}"
-tags: [${tagsArray.map((t: string) => `"${t}"`).join(", ")}]
-seoKeywords: [${seoKeywordsArray.map((k: string) => `"${k}"`).join(", ")}]
-author: "Red Flag Security Team"
-featured: ${featured || false}
-draft: ${draft === true}
----
-
-${content}
-`;
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    await saveArticle(filename, markdown, draft ? `Add draft: ${title}` : `Add article: ${title}`);
-  } catch (err: unknown) {
-    const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : 0;
-    const msg = err instanceof Error ? err.message : "";
-    const is401 = status === 401 || msg.includes("Bad credentials");
-    console.error("Save article error:", err);
-    return NextResponse.json(
-      { error: is401 ? "GitHub authentication failed. Check GITHUB_TOKEN in .env.local." : "Failed to save article." },
-      { status: is401 ? 401 : 500 }
-    );
-  }
+    const body = await request.json();
+    const slug = generateSlug(body.title);
+    const status = body.draft ? "draft" : (body.status || "published");
 
-  return NextResponse.json({ success: true, slug });
+    const article = await createArticle({
+      slug,
+      title: body.title,
+      excerpt: body.excerpt || "",
+      content: body.content || "",
+      category: body.category || "technology",
+      published_at: body.publishedAt || new Date().toISOString(),
+      cover_image: body.coverImage || "",
+      tags: body.tags || [],
+      seo_keywords: body.seoKeywords || [],
+      author: body.author || "Red Flag Security Team",
+      featured: body.featured || false,
+      status,
+    });
+
+    // Trigger website rebuild after publishing
+    if (status !== "draft") {
+      await triggerWebsiteRebuild();
+    }
+
+    return NextResponse.json({ success: true, slug, article: article ? articleToFrontend(article) : null });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to create article";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
