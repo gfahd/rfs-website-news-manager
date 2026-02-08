@@ -3,62 +3,70 @@
 This document provides a technical overview of the Red Flag News Admin application, specifically designed to help an AI agent understand the architecture, data flow, and deployment model.
 
 ## 1. Application Overview
-**Red Flag News Admin** is a bespoke Content Management System (CMS) built with **Next.js**. It is used to manage news articles for a separate public-facing **static website** (Red Flag Security).
+**Red Flag News Admin** is a bespoke Content Management System (CMS) built with **Next.js**. It is used to manage news articles for a separate public-facing website (Red Flag Security).
 
 *   **Role**: Admin Interface.
-*   **Target**: Updates content in a GitHub repository.
-*   **Database**: None. The GitHub repository acts as the database.
+*   **Target**: Manages content consumed by the public site.
+*   **Database**: **Supabase** — PostgreSQL for articles, Supabase Storage for images. GitHub is no longer used as content storage.
 
 ## 2. Technology Stack
 *   **Framework**: Next.js 16 (App Router)
 *   **Language**: TypeScript
 *   **Styling**: Tailwind CSS 4
 *   **Authentication**: NextAuth.js (Google OAuth, restricted to specific email domains)
-*   **Data Layer**: GitHub API (via `@octokit/rest`)
-*   **Content Format**: Markdown (`.md`) with YAML Frontmatter
+*   **Data Layer**: **Supabase** (via `@supabase/supabase-js`) — articles in PostgreSQL, images in Storage
 *   **State Management**: Server Actions / API Routes
 
 ## 3. Data Storage & Structure
-The application treats a GitHub repository as its file system.
+Content lives in **Supabase**, not in a GitHub repository.
 
 ### Articles
-*   **Location**: `content/news/` in the target repository.
-*   **File Format**: Markdown (`.md`).
-*   **Naming Convention**: `YYYY-MM-DD-slug.md` (e.g., `2024-03-20-security-update.md`).
-*   **Content Structure**:
-    *   **Frontmatter (YAML)**: Stores metadata like `title`, `excerpt`, `category`, `publishedAt`, `coverImage`, `tags`, `author`, `featured`.
-    *   **Body**: Standard Markdown content.
-*   **Logic**: Handled in `src/lib/github.ts`.
+*   **Location**: Supabase PostgreSQL table `articles`.
+*   **Structure**: Row per article with columns such as `id`, `slug`, `title`, `excerpt`, `content`, `category`, `published_at`, `cover_image`, `tags`, `seo_keywords`, `author`, `featured`, `status` (`published` | `draft`), `created_at`, `updated_at`.
+*   **Logic**: Handled in `src/lib/supabase.ts` — `getArticles`, `getArticle`, `createArticle`, `updateArticle`, `deleteArticle`, `articleToFrontend` (maps snake_case to camelCase for the frontend).
 
 ### Images
-*   **Location**: `public/images/news/` in the target repository.
-*   **Upload Method**: Files are converted to Base64 and committed via the GitHub API.
-*   **Serving**: Referenced in articles by their public path (e.g., `/images/news/my-image.jpg`).
+*   **Location**: Supabase Storage bucket `news-images`.
+*   **Upload Method**: Base64 payload sent to `/api/upload`; server uploads to Supabase Storage and returns the public URL.
+*   **Serving**: Articles store the full public URL (e.g. `https://...supabase.co/storage/v1/object/public/news-images/...`). The frontend supports both legacy paths (`/images/news/...`) via a serve-image proxy and full URLs used as-is.
 
-## 4. Workflow & Deployment (CRITICAL)
-Understanding the decoupling between this Admin App and the Public Site is essential.
+### GitHub (reduced role)
+*   **No longer used** for storing articles or images.
+*   **Still used**: Optional **website rebuild trigger**. On publish/update/delete, the admin can trigger a GitHub repository dispatch (`rfs-website`) so the public site’s CI can rebuild and redeploy. See `triggerWebsiteRebuild()` in `src/lib/supabase.ts`. Requires `GITHUB_TOKEN` and `GITHUB_OWNER` (no `GITHUB_REPO` for content).
 
+## 4. Workflow & Deployment
 1.  **Content Creation**:
     *   User logs into **Red Flag News Admin**.
-    *   User creates/edits an article.
-    *   Admin App pushes a commit to the GitHub repository (adding/updating the `.md` file).
+    *   User creates/edits an article (and optionally uploads images).
+    *   Admin App writes to **Supabase** (articles table and/or Storage).
 
-2.  **The "Disconnect"**:
-    *   At this stage, the **Public Website** (a static site) does **NOT** automatically update.
-    *   The public site serves pre-generated HTML files created during its last *build*.
+2.  **Visibility on the public site**:
+    *   If the **public website** reads articles and images from the **same Supabase project**, it can show new/updated content as soon as it refetches (e.g. on demand or on next build).
+    *   If the public site is static and needs a rebuild to pull from Supabase, a **rebuild trigger** is sent via GitHub repo dispatch (`triggerWebsiteRebuild`). Rebuild/redeploy steps depend on the public site’s setup (e.g. see DEPLOYMENT.md if applicable).
 
-3.  **Deployment/Update Process**:
-    *   To make the new article visible, the **Public Website must be rebuilt and redeployed**.
-    *   **Build Process**: The public site's build script (e.g., `next build`) scans the `content/news/` folder, parses the `.md` files, and generates static HTML pages (e.g., `out/news/slug/index.html`).
-    *   **Trigger**: This usually requires a manual trigger or a CI/CD pipeline (e.g., GitHub Actions) configured to watch for changes in `content/news/`.
+3.  **Success message**: After publish/update, the articles list shows a banner: “Article saved to the database” and notes that the live site may update automatically or after a rebuild depending on setup.
 
 ## 5. Key Environment Variables
-The app relies on these secrets (stored in `.env.local`):
-*   `GITHUB_TOKEN`: Token with repo read/write permissions.
-*   `GITHUB_OWNER`: The GitHub organization/username.
-*   `GITHUB_REPO`: The repository name where content is stored.
-*   `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: For authentication.
+Stored in `.env.local`:
+
+*   **Supabase (required for content)**  
+    *   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`: Server-side access (API routes).  
+    *   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: For any client-side Supabase usage (e.g. public read).
+
+*   **GitHub (optional — only for rebuild trigger)**  
+    *   `GITHUB_TOKEN`: Token with repo dispatch permission for the website repo.  
+    *   `GITHUB_OWNER`: GitHub org/username (e.g. for `owner/rfs-website`).
+
+*   **Auth**  
+    *   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, etc.
+
+*   **AI (optional)**  
+    *   `GEMINI_API_KEY`: For AI features in the admin (e.g. generate article, metadata, improve text).
 
 ## 6. Codebase Context
-*   **`src/lib/github.ts`**: The "Backend" service. Contains `getArticles`, `saveArticle`, `deleteArticle`, `uploadImage`. This is the single point of truth for GitHub interactions.
-*   **`src/app/api/`**: Internal API endpoints called by the frontend to execute the server-side GitHub logic.
+*   **`src/lib/supabase.ts`**: Main data layer. Supabase clients (`supabaseAdmin`, `supabasePublic`), article CRUD, `articleToFrontend`, image upload/list (`uploadImage`, `getImages`), `triggerWebsiteRebuild`, `generateSlug`.
+*   **`src/lib/github.ts`**: Effectively deprecated for content; kept as a stub. Rebuild trigger lives in `supabase.ts`.
+*   **`src/app/api/articles/`**, **`src/app/api/articles/[slug]/`**: Use Supabase for list/get/create/update/delete; return data in frontend shape via `articleToFrontend`.
+*   **`src/app/api/images/`**, **`src/app/api/upload/`**: Use Supabase Storage for listing and uploading images.
+*   **`src/app/api/ai/route.ts`**: Unchanged; AI actions (e.g. Gemini) for generate/improve/metadata.
+*   **Auth**: Unchanged; NextAuth with existing config.
