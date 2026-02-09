@@ -22,6 +22,9 @@ import {
   Image as ImageIcon,
   Sparkles as SparklesIcon,
   Monitor,
+  Grid,
+  Search,
+  Check,
 } from "lucide-react";
 import { getStoredGeminiModel, getAiModelsCache, type AIModelOption } from "@/lib/settings-client";
 import { useError } from "@/context/ErrorContext";
@@ -46,6 +49,21 @@ const FALLBACK_CATEGORIES: CategoryOption[] = [
   { value: "guides", label: "Guides & How-To" },
   { value: "security-tips", label: "Security Tips" },
   { value: "industry-trends", label: "Industry Trends" },
+];
+
+const DEFAULT_DISCOVERY_CATEGORIES = [
+  "Residential Security",
+  "Commercial Security",
+  "Alarm Systems",
+  "Access Control",
+  "CCTV & Surveillance",
+  "Intercom Systems",
+  "Smart Wiring",
+  "Video Doorbell",
+  "Medical Safety",
+  "Home Automation",
+  "Fire & Life Safety",
+  "Cybersecurity",
 ];
 
 const TONES = [
@@ -114,7 +132,12 @@ export default function NewArticlePage() {
   const [showDiscoverTopics, setShowDiscoverTopics] = useState(false);
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [trendingTopicsLoading, setTrendingTopicsLoading] = useState(false);
-  const [trendingFocus, setTrendingFocus] = useState<string>("");
+  const [discoveryScreen, setDiscoveryScreen] = useState<"setup" | "results">("setup");
+  const [discoveryCategories, setDiscoveryCategories] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [discoveryKeyword, setDiscoveryKeyword] = useState("");
+  const [discoverySearchContext, setDiscoverySearchContext] = useState("");
+  const [lastDiscoveryPayload, setLastDiscoveryPayload] = useState<{ mode: "auto" | "categories" | "keyword"; categories?: string[]; keyword?: string } | null>(null);
 
   useEffect(() => {
     setModel(getStoredGeminiModel());
@@ -361,14 +384,22 @@ export default function NewArticlePage() {
     }
   };
 
-  async function fetchTrendingTopics() {
+  async function runDiscovery(payload: { mode: "auto" | "categories" | "keyword"; categories?: string[]; keyword?: string }) {
+    setLastDiscoveryPayload(payload);
+    if (payload.mode === "auto") {
+      setDiscoverySearchContext("Auto-discovery across all categories");
+    } else if (payload.mode === "categories" && payload.categories?.length) {
+      setDiscoverySearchContext(`Based on: ${payload.categories.join(", ")}`);
+    } else if (payload.mode === "keyword" && payload.keyword) {
+      setDiscoverySearchContext(`Based on: ${payload.keyword}`);
+    }
+    setDiscoveryScreen("results");
     setTrendingTopicsLoading(true);
     try {
-      const focusPayload = trendingFocus && trendingFocus !== "All" ? { focus: trendingFocus } : {};
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "discover_topics", model, payload: focusPayload }),
+        body: JSON.stringify({ action: "discover_topics", model, payload }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to fetch topics");
@@ -381,9 +412,27 @@ export default function NewArticlePage() {
     }
   }
 
+  function fetchTrendingTopics() {
+    if (lastDiscoveryPayload) runDiscovery(lastDiscoveryPayload);
+  }
+
   useEffect(() => {
-    if (showDiscoverTopics) fetchTrendingTopics();
-  }, [showDiscoverTopics, trendingFocus]);
+    if (showDiscoverTopics) {
+      setDiscoveryScreen("setup");
+      setSelectedCategories([]);
+      setDiscoveryKeyword("");
+      setDiscoverySearchContext("");
+      setLastDiscoveryPayload(null);
+      setTrendingTopics([]);
+      fetch("/api/settings")
+        .then((r) => r.json())
+        .then((data) => {
+          const cats = data.settings?.discovery_categories;
+          setDiscoveryCategories(Array.isArray(cats) && cats.length > 0 ? cats : DEFAULT_DISCOVERY_CATEGORIES);
+        })
+        .catch(() => setDiscoveryCategories(DEFAULT_DISCOVERY_CATEGORIES));
+    }
+  }, [showDiscoverTopics]);
 
   const buildPayload = () => ({
     title: title || "Untitled",
@@ -772,105 +821,228 @@ export default function NewArticlePage() {
             onClick={() => !trendingTopicsLoading && setShowDiscoverTopics(false)}
           >
             <div
-              className="bg-slate-900 rounded-2xl border border-slate-800 mx-4 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
+              className="bg-slate-900 rounded-2xl border border-slate-800 mx-4 max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-slate-800">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-red-400" />
-                  Discover Trending Topics
-                </h3>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {(["All", "Residential", "Commercial", "Cybersecurity", "Industry"] as const).map(
-                    (label) => {
-                      const value = label === "All" ? "" : label.toLowerCase();
-                      return (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => setTrendingFocus(value)}
-                          className={`px-3 py-1.5 rounded-full text-sm transition-all duration-200 ${
-                            trendingFocus === value ? "bg-red-500 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1">
-                {trendingTopicsLoading ? (
-                  <p className="flex items-center gap-2 text-slate-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Scanning for trending topics...
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {trendingTopics.map((topic, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-red-500/50 transition-all duration-200 flex flex-col"
-                      >
-                        <h4 className="font-semibold text-white text-base">{topic.title}</h4>
-                        <p className="text-sm text-slate-400 mt-1">{topic.description}</p>
-                        <p className="text-xs text-slate-500 italic mt-2 flex items-center gap-1">
-                          <Flame className="w-3.5 h-3.5" />
-                          {topic.why_trending}
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-3 mb-4">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-600 text-slate-200">
-                            {topic.category}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs ${
-                              topic.interest === "high"
-                                ? "bg-emerald-500/20 text-emerald-400"
-                                : topic.interest === "medium"
-                                  ? "bg-amber-500/20 text-amber-400"
-                                  : "bg-slate-600 text-slate-400"
-                            }`}
-                          >
-                            {topic.interest}
-                          </span>
-                        </div>
-                        {topic.source && (
-                          <p className="text-xs text-slate-500 italic mt-2 line-clamp-1">
-                            Inspired by: &quot;{topic.source}&quot;
-                          </p>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleWriteFromTopic(topic)}
-                          disabled={isGenerating}
-                          className="mt-auto w-full py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-all duration-200 disabled:opacity-50"
-                        >
-                          Write This Article
-                        </button>
-                      </div>
-                    ))}
+              {discoveryScreen === "setup" ? (
+                <>
+                  <div className="p-6 border-b border-slate-800">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-red-400" />
+                      Discover Trending Topics
+                    </h3>
+                    <p className="text-slate-400 text-sm mt-1">Find trending security topics to write about</p>
                   </div>
-                )}
-              </div>
-              <div className="p-6 border-t border-slate-800 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={fetchTrendingTopics}
-                  disabled={trendingTopicsLoading}
-                  className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
-                >
-                  <RefreshCw className={`w-4 h-4 ${trendingTopicsLoading ? "animate-spin" : ""}`} />
-                  Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDiscoverTopics(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all duration-200"
-                >
-                  Close
-                </button>
-              </div>
+                  <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                    {/* Option A: Auto-Discover */}
+                    <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-xl p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="shrink-0 text-red-500">
+                          <Sparkles className="w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-white">Auto-Discover Trending Topics</h4>
+                          <p className="text-sm text-slate-400 mt-1">
+                            AI will search for the latest trending topics across all your security categories
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => runDiscovery({ mode: "auto" })}
+                            disabled={trendingTopicsLoading}
+                            className="mt-3 bg-red-500 hover:bg-red-600 rounded-lg px-5 py-2.5 text-white text-sm font-medium disabled:opacity-50"
+                          >
+                            Start Auto-Discovery
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-slate-700" />
+                      <span className="text-slate-500 text-sm">Or customize your search</span>
+                      <div className="flex-1 h-px bg-slate-700" />
+                    </div>
+
+                    {/* Option B: Select Categories */}
+                    <div>
+                      <h4 className="font-semibold text-white flex items-center gap-2 mb-1">
+                        <Grid className="w-4 h-4 text-slate-400" />
+                        Select Categories
+                      </h4>
+                      <p className="text-sm text-slate-400 mb-3">Choose specific categories to focus on</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+                        {(discoveryCategories.length ? discoveryCategories : DEFAULT_DISCOVERY_CATEGORIES).map((cat) => {
+                          const selected = selectedCategories.includes(cat);
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() =>
+                                setSelectedCategories((prev) =>
+                                  selected ? prev.filter((c) => c !== cat) : [...prev, cat]
+                                )
+                              }
+                              className={`rounded-xl px-4 py-3 text-sm text-left flex items-center justify-between gap-2 border cursor-pointer transition-colors ${
+                                selected
+                                  ? "bg-red-500/20 border-red-500 text-red-400"
+                                  : "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600"
+                              }`}
+                            >
+                              <span className="truncate">{cat}</span>
+                              {selected && <Check className="w-4 h-4 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runDiscovery({ mode: "categories", categories: selectedCategories })}
+                        disabled={trendingTopicsLoading || selectedCategories.length === 0}
+                        className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:pointer-events-none text-sm font-medium"
+                      >
+                        Discover Selected
+                      </button>
+                    </div>
+
+                    {/* Option C: Custom Keyword */}
+                    <div>
+                      <h4 className="font-semibold text-white flex items-center gap-2 mb-1">
+                        <Search className="w-4 h-4 text-slate-400" />
+                        Search by Keyword
+                      </h4>
+                      <input
+                        type="text"
+                        value={discoveryKeyword}
+                        onChange={(e) => setDiscoveryKeyword(e.target.value)}
+                        placeholder="Type a topic or keyword... e.g., 'AI-powered surveillance', 'smart lock vulnerabilities'"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 mb-3"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => runDiscovery({ mode: "keyword", keyword: discoveryKeyword.trim() })}
+                        disabled={trendingTopicsLoading || discoveryKeyword.trim().length < 3}
+                        className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:pointer-events-none text-sm font-medium"
+                      >
+                        Search Trending
+                      </button>
+                    </div>
+
+                    <p className="text-sm">
+                      <a
+                        href="/settings"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-500 hover:text-red-400 transition-colors"
+                      >
+                        Manage Categories
+                      </a>
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-6 border-b border-slate-800">
+                    <h3 className="text-lg font-semibold text-white">Trending Topics</h3>
+                    <p className="text-slate-400 text-sm mt-1">{discoverySearchContext}</p>
+                    <button
+                      type="button"
+                      onClick={() => setDiscoveryScreen("setup")}
+                      disabled={trendingTopicsLoading}
+                      className="mt-2 text-sm text-red-400 hover:text-red-300 disabled:opacity-50"
+                    >
+                      ← Back to setup
+                    </button>
+                  </div>
+                  <div className="p-6 overflow-y-auto flex-1">
+                    {trendingTopicsLoading ? (
+                      <>
+                        <p className="flex items-center gap-2 text-slate-400 mb-4">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Searching for trending topics...
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div
+                              key={i}
+                              className="bg-slate-800 rounded-xl p-5 border border-slate-700 animate-pulse h-48"
+                            />
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {trendingTopics.map((topic, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-red-500/50 transition-all duration-200 flex flex-col"
+                          >
+                            <h4 className="font-semibold text-white text-base">{topic.title}</h4>
+                            <p className="text-sm text-slate-400 mt-1">{topic.description}</p>
+                            <p className="text-xs text-slate-500 italic mt-2 flex items-center gap-1">
+                              <Flame className="w-3.5 h-3.5" />
+                              {topic.why_trending}
+                            </p>
+                            <div className="flex flex-wrap gap-2 mt-3 mb-4">
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-slate-600 text-slate-200">
+                                {topic.category}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs ${
+                                  topic.interest === "high"
+                                    ? "bg-emerald-500/20 text-emerald-400"
+                                    : topic.interest === "medium"
+                                      ? "bg-amber-500/20 text-amber-400"
+                                      : "bg-slate-600 text-slate-400"
+                                }`}
+                              >
+                                {topic.interest}
+                              </span>
+                            </div>
+                            {topic.source && (
+                              <p className="text-xs text-slate-500 italic mt-2 line-clamp-1">
+                                Inspired by: &quot;{topic.source}&quot;
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleWriteFromTopic(topic)}
+                              disabled={isGenerating}
+                              className="mt-auto w-full py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-all duration-200 disabled:opacity-50"
+                            >
+                              Write This Article
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-6 border-t border-slate-800 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => lastDiscoveryPayload && runDiscovery(lastDiscoveryPayload)}
+                      disabled={trendingTopicsLoading || !lastDiscoveryPayload}
+                      className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${trendingTopicsLoading ? "animate-spin" : ""}`} />
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscoveryScreen("setup")}
+                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiscoverTopics(false)}
+                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

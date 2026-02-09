@@ -26,6 +26,20 @@ const DEFAULT_SETTINGS: AppSettings = {
   ai_link_policy: "internal_only",
   seo_default_keywords: [],
   categories: [],
+  discovery_categories: [
+    "Residential Security",
+    "Commercial Security",
+    "Alarm Systems",
+    "Access Control",
+    "CCTV & Surveillance",
+    "Intercom Systems",
+    "Smart Wiring",
+    "Video Doorbell",
+    "Medical Safety",
+    "Home Automation",
+    "Fire & Life Safety",
+    "Cybersecurity",
+  ],
 };
 
 function parseAiModelsRaw(raw: unknown): unknown[] {
@@ -95,6 +109,9 @@ function normalizeRow(row: Record<string, unknown> | null): AppSettings {
     categories: Array.isArray(row.categories)
       ? (row.categories as string[]).filter((x) => typeof x === "string")
       : DEFAULT_SETTINGS.categories,
+    discovery_categories: Array.isArray(row.discovery_categories)
+      ? (row.discovery_categories as string[]).filter((x) => typeof x === "string")
+      : DEFAULT_SETTINGS.discovery_categories,
   };
 }
 

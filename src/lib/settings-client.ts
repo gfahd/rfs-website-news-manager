@@ -61,4 +61,5 @@ export interface AppSettings {
   ai_link_policy: "internal_only" | "no_links" | "allow_all";
   seo_default_keywords: string[];
   categories: string[];
+  discovery_categories: string[];
 }

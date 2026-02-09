@@ -1,41 +1,11 @@
 // Fetches real security news headlines from Google News RSS feeds
 // These are free, public RSS feeds — no API key needed
 
-const FEED_URLS: Record<string, string> = {
-  all: "https://news.google.com/rss/search?q=security+alarm+CCTV+surveillance&hl=en&gl=US&ceid=US:en",
-  residential: "https://news.google.com/rss/search?q=home+security+alarm+system+smart+home&hl=en&gl=US&ceid=US:en",
-  commercial: "https://news.google.com/rss/search?q=commercial+security+access+control+business+surveillance&hl=en&gl=US&ceid=US:en",
-  cybersecurity: "https://news.google.com/rss/search?q=cybersecurity+threats+data+breach+security&hl=en&gl=US&ceid=US:en",
-  industry: "https://news.google.com/rss/search?q=security+industry+trends+technology+market&hl=en&gl=US&ceid=US:en",
-};
-
 export interface NewsHeadline {
   title: string;
   link: string;
   pubDate: string;
   source: string;
-}
-
-export async function fetchSecurityNews(focus: string = "all"): Promise<NewsHeadline[]> {
-  const feedUrl = FEED_URLS[focus] || FEED_URLS.all;
-
-  try {
-    const response = await fetch(feedUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      next: { revalidate: 3600 }, // cache for 1 hour
-    });
-
-    if (!response.ok) {
-      console.error("Failed to fetch news feed:", response.status);
-      return [];
-    }
-
-    const xml = await response.text();
-    return parseRSS(xml);
-  } catch (error) {
-    console.error("Error fetching news:", error);
-    return [];
-  }
 }
 
 function parseRSS(xml: string): NewsHeadline[] {
@@ -65,4 +35,60 @@ function parseRSS(xml: string): NewsHeadline[] {
   }
 
   return headlines;
+}
+
+export async function fetchSecurityNews(options: {
+  mode: "auto" | "categories" | "keyword";
+  categories?: string[];
+  keyword?: string;
+}): Promise<NewsHeadline[]> {
+  let searchTerms: string[] = [];
+
+  if (options.mode === "auto") {
+    searchTerms = [
+      "home security alarm systems",
+      "commercial security CCTV surveillance",
+      "access control smart lock",
+      "home automation security",
+      "security industry trends technology",
+    ];
+  } else if (options.mode === "categories" && options.categories?.length) {
+    searchTerms = options.categories.map((cat) => `${cat} security news`);
+  } else if (options.mode === "keyword" && options.keyword) {
+    searchTerms = [`${options.keyword} security`, options.keyword];
+  } else {
+    searchTerms = ["security alarm CCTV surveillance"];
+  }
+
+  const allHeadlines: NewsHeadline[] = [];
+  const termsToFetch = searchTerms.slice(0, 5);
+
+  for (const term of termsToFetch) {
+    const encoded = encodeURIComponent(term);
+    const feedUrl = `https://news.google.com/rss/search?q=${encoded}&hl=en&gl=US&ceid=US:en`;
+
+    try {
+      const response = await fetch(feedUrl, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        next: { revalidate: 3600 },
+      });
+      if (response.ok) {
+        const xml = await response.text();
+        const headlines = parseRSS(xml);
+        allHeadlines.push(...headlines);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch feed for: ${term}`, error);
+    }
+  }
+
+  const seen = new Set<string>();
+  const unique = allHeadlines.filter((h) => {
+    const key = h.title.toLowerCase().substring(0, 50);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return unique.slice(0, 20);
 }

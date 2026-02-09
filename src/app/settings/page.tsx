@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useError } from "@/context/ErrorContext";
-import { Settings as SettingsIcon, X, AlertTriangle } from "lucide-react";
+import { Settings as SettingsIcon, X, AlertTriangle, Compass } from "lucide-react";
 import { getAiModelsCache, setAiModelsCache, type AppSettings, type AIModelOption } from "@/lib/settings-client";
 
 const TONE_OPTIONS = [
@@ -48,6 +48,20 @@ const DEFAULT_SETTINGS: Omit<AppSettings, "id"> = {
   ai_link_policy: "internal_only",
   seo_default_keywords: [],
   categories: [],
+  discovery_categories: [
+    "Residential Security",
+    "Commercial Security",
+    "Alarm Systems",
+    "Access Control",
+    "CCTV & Surveillance",
+    "Intercom Systems",
+    "Smart Wiring",
+    "Video Doorbell",
+    "Medical Safety",
+    "Home Automation",
+    "Fire & Life Safety",
+    "Cybersecurity",
+  ],
 };
 
 function settingsToForm(s: AppSettings | undefined): Omit<AppSettings, "id"> | null {
@@ -115,6 +129,9 @@ function settingsToForm(s: AppSettings | undefined): Omit<AppSettings, "id"> | n
     ai_link_policy: s.ai_link_policy ?? "internal_only",
     seo_default_keywords: Array.isArray(s.seo_default_keywords) ? s.seo_default_keywords : [],
     categories: Array.isArray(s.categories) ? s.categories : [],
+    discovery_categories: Array.isArray((s as { discovery_categories?: string[] }).discovery_categories)
+      ? (s as { discovery_categories: string[] }).discovery_categories
+      : DEFAULT_SETTINGS.discovery_categories,
   };
 }
 
@@ -543,7 +560,23 @@ export default function SettingsPage() {
               </div>
             </section>
 
-            {/* Section 6 — Danger Zone */}
+            {/* Section 6 — Discovery Categories */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                <Compass className="w-5 h-5 text-slate-400" />
+                Topic Discovery Categories
+              </h2>
+              <p className="text-sm text-slate-400 mb-4">
+                Categories used when discovering trending topics. These define what the AI searches for.
+              </p>
+              <TagInput
+                values={form.discovery_categories}
+                onChange={(discovery_categories) => update({ discovery_categories })}
+                placeholder="Add category…"
+              />
+            </section>
+
+            {/* Section 7 — Danger Zone */}
             <section className="bg-slate-900 rounded-xl p-6 border border-red-900/50 border-2">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" />

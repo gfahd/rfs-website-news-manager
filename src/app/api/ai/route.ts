@@ -270,19 +270,41 @@ export async function POST(request: Request) {
     }
 
     if (action === "discover_topics") {
-      const { focus } = (payload || {}) as { focus?: string };
-      const focusKey = focus || "all";
+      const { mode = "auto", categories: payloadCategories, keyword: payloadKeyword } = (payload || {}) as {
+        mode?: "auto" | "categories" | "keyword";
+        categories?: string[];
+        keyword?: string;
+      };
 
-      // Step 1: Fetch real headlines from Google News RSS (or fallback to no headlines)
-      let headlines = await fetchSecurityNews(focusKey);
-
-      let headlinesList: string;
-      if (headlines.length > 0) {
-        headlinesList = `Here are REAL, CURRENT security news headlines:\n\n${headlines
-          .map((h, i) => `${i + 1}. "${h.title}" (${h.source}, ${h.pubDate})`)
-          .join("\n")}\n\nBased on these headlines, `;
+      type FetchOpts = { mode: "auto" | "categories" | "keyword"; categories?: string[]; keyword?: string };
+      let fetchOpts: FetchOpts;
+      if (mode === "auto") {
+        if (settings.discovery_categories?.length) {
+          fetchOpts = { mode: "categories", categories: settings.discovery_categories };
+        } else {
+          fetchOpts = { mode: "auto" };
+        }
+      } else if (mode === "categories" && payloadCategories?.length) {
+        fetchOpts = { mode: "categories", categories: payloadCategories };
+      } else if (mode === "keyword" && payloadKeyword) {
+        fetchOpts = { mode: "keyword", keyword: payloadKeyword };
       } else {
-        headlinesList = `Based on your knowledge of current security industry trends, `;
+        fetchOpts = { mode: "auto" };
+      }
+
+      const headlines = await fetchSecurityNews(fetchOpts);
+
+      const headlinesList = headlines
+        .map((h, i) => `${i + 1}. "${h.title}" (${h.source})`)
+        .join("\n");
+
+      let searchContext = "";
+      if (mode === "auto") {
+        searchContext = "across all security product categories";
+      } else if (mode === "categories" && payloadCategories?.length) {
+        searchContext = `focused on: ${payloadCategories.join(", ")}`;
+      } else if (mode === "keyword" && payloadKeyword) {
+        searchContext = `related to: "${payloadKeyword}"`;
       }
 
       const categoriesList =
@@ -290,23 +312,29 @@ export async function POST(request: Request) {
           ? settings.categories.join(", ")
           : "threat-intel, technology, company-news, guides, security-tips, industry-trends";
 
-      const prompt = `${systemPrefix}
+      const settingsPrefix = systemPrefix;
+      const prompt = `${settingsPrefix}
 
 You are a content strategist for ${settings.company_name}.
 
-${headlinesList}generate 6 article ideas that ${settings.company_name} could write for their blog. Each article should be inspired by or related to ${headlines.length > 0 ? "one or more of these real news stories" : "current security industry trends"}, but written from the perspective of a local security company that provides alarm systems, CCTV, access control, and monitoring.
+Here are REAL, CURRENT news headlines ${searchContext}:
 
-${focusKey !== "all" ? `Focus especially on: ${focusKey}` : ""}
+${headlinesList || "No specific headlines found — use your knowledge of current security industry trends."}
+
+Generate 6 article ideas that ${settings.company_name} could write for their blog. Each article should be inspired by these real stories, written from the perspective of a security company providing alarm systems, CCTV, access control, intercom, home automation, and 24/7 monitoring.
+
+${mode === "categories" && payloadCategories?.length ? `Focus the articles on these specific areas: ${payloadCategories.join(", ")}` : ""}
+${mode === "keyword" && payloadKeyword ? `Focus the articles on this specific topic: ${payloadKeyword}` : ""}
 
 For each article idea, provide:
-1. A compelling title (written for ${settings.company_name}'s blog, NOT just copying a headline)
-2. A one-sentence description of what the article would cover
-3. Why it's relevant right now (reference the real news that inspired it, or current trends)
+1. A compelling title for ${settings.company_name}'s blog
+2. One-sentence description
+3. Why it's relevant now
 4. Suggested category (one of: ${categoriesList})
 5. Reader interest level: high, medium, or low
-6. The source headline that inspired this idea (if from the list above, quote it; otherwise a short description)
+6. The source headline that inspired it
 
-Respond in valid JSON only, no markdown fences:
+Respond in valid JSON only:
 {
   "topics": [
     {
