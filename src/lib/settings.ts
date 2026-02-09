@@ -1,3 +1,5 @@
+// ============ Client-side (localStorage) ============
+
 export const GEMINI_MODEL_KEY = "gemini-model";
 export const GEMINI_MODEL_DEFAULT = "gemini-2.5-flash";
 
@@ -6,4 +8,126 @@ export function getStoredGeminiModel(): string {
   const stored = localStorage.getItem(GEMINI_MODEL_KEY);
   if (stored === "gemini-2.0-flash" || stored === "gemini-2.5-flash" || stored === "gemini-3-flash-preview") return stored;
   return GEMINI_MODEL_DEFAULT;
+}
+
+// ============ App settings (Supabase) ============
+
+import { supabaseAdmin } from "./supabase";
+
+export interface AIModelOption {
+  value: string;
+  label: string;
+}
+
+export interface AppSettings {
+  id: string;
+  company_name: string;
+  company_description: string;
+  website_url: string;
+  default_author: string;
+  default_tone: string;
+  default_article_length: string;
+  default_model: string;
+  ai_models: AIModelOption[];
+  ai_instructions: string;
+  ai_forbidden_topics: string;
+  ai_forbidden_companies: string;
+  ai_link_policy: "internal_only" | "no_links" | "allow_all";
+  seo_default_keywords: string[];
+  categories: string[];
+}
+
+const DEFAULT_AI_MODELS: AIModelOption[] = [
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+];
+
+const DEFAULT_SETTINGS: AppSettings = {
+  id: "global",
+  company_name: "Red Flag Security",
+  company_description: "Canadian company that installs alarm systems, CCTV cameras, access control systems, and provides 24/7 alarm monitoring.",
+  website_url: "https://redflagsecurity.ca",
+  default_author: "Red Flag Security Team",
+  default_tone: "Professional",
+  default_article_length: "medium",
+  default_model: "gemini-2.5-flash",
+  ai_models: DEFAULT_AI_MODELS,
+  ai_instructions: "",
+  ai_forbidden_topics: "",
+  ai_forbidden_companies: "",
+  ai_link_policy: "internal_only",
+  seo_default_keywords: [],
+  categories: [],
+};
+
+function normalizeAiModels(raw: unknown): AIModelOption[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [...DEFAULT_AI_MODELS];
+  return raw
+    .filter((x): x is { value?: string; label?: string } => x != null && typeof x === "object")
+    .map((x) => ({ value: String(x.value ?? "").trim(), label: String(x.label ?? x.value ?? "").trim() }))
+    .filter((x) => x.value.length > 0 && x.label.length > 0);
+}
+
+function normalizeRow(row: Record<string, unknown> | null): AppSettings {
+  if (!row || typeof row !== "object") return { ...DEFAULT_SETTINGS };
+  return {
+    id: typeof row.id === "string" ? row.id : DEFAULT_SETTINGS.id,
+    company_name: typeof row.company_name === "string" ? row.company_name : DEFAULT_SETTINGS.company_name,
+    company_description: typeof row.company_description === "string" ? row.company_description : DEFAULT_SETTINGS.company_description,
+    website_url: typeof row.website_url === "string" ? row.website_url : DEFAULT_SETTINGS.website_url,
+    default_author: typeof row.default_author === "string" ? row.default_author : DEFAULT_SETTINGS.default_author,
+    default_tone: typeof row.default_tone === "string" ? row.default_tone : DEFAULT_SETTINGS.default_tone,
+    default_article_length: typeof row.default_article_length === "string" ? row.default_article_length : DEFAULT_SETTINGS.default_article_length,
+    default_model: typeof row.default_model === "string" ? row.default_model : DEFAULT_SETTINGS.default_model,
+    ai_models: normalizeAiModels(row.ai_models),
+    ai_instructions: typeof row.ai_instructions === "string" ? row.ai_instructions : DEFAULT_SETTINGS.ai_instructions,
+    ai_forbidden_topics: typeof row.ai_forbidden_topics === "string" ? row.ai_forbidden_topics : DEFAULT_SETTINGS.ai_forbidden_topics,
+    ai_forbidden_companies: typeof row.ai_forbidden_companies === "string" ? row.ai_forbidden_companies : DEFAULT_SETTINGS.ai_forbidden_companies,
+    ai_link_policy:
+      row.ai_link_policy === "internal_only" || row.ai_link_policy === "no_links" || row.ai_link_policy === "allow_all"
+        ? row.ai_link_policy
+        : DEFAULT_SETTINGS.ai_link_policy,
+    seo_default_keywords: Array.isArray(row.seo_default_keywords)
+      ? (row.seo_default_keywords as string[]).filter((x) => typeof x === "string")
+      : DEFAULT_SETTINGS.seo_default_keywords,
+    categories: Array.isArray(row.categories)
+      ? (row.categories as string[]).filter((x) => typeof x === "string")
+      : DEFAULT_SETTINGS.categories,
+  };
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("settings")
+      .select("*")
+      .eq("id", "global")
+      .single();
+
+    if (error) {
+      console.error("Error fetching settings:", error);
+      return { ...DEFAULT_SETTINGS };
+    }
+    return normalizeRow(data as Record<string, unknown>);
+  } catch (e) {
+    console.error("getSettings error:", e);
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+export async function updateSettings(updates: Partial<Omit<AppSettings, "id">>): Promise<AppSettings> {
+  const payload: Record<string, unknown> = { id: "global", ...updates };
+  if (Object.keys(payload).length === 1) return getSettings();
+
+  const { data, error } = await supabaseAdmin
+    .from("settings")
+    .upsert(payload, { onConflict: "id" })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating settings:", error);
+    throw new Error(error.message);
+  }
+  return normalizeRow(data as Record<string, unknown>);
 }

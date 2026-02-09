@@ -2,49 +2,222 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Settings as SettingsIcon, ExternalLink, BookOpen } from "lucide-react";
-import { GEMINI_MODEL_KEY, GEMINI_MODEL_DEFAULT, getStoredGeminiModel } from "@/lib/settings";
+import { Settings as SettingsIcon, X, AlertTriangle } from "lucide-react";
+import type { AppSettings, AIModelOption } from "@/lib/settings";
 
-const MODEL_OPTIONS = [
+const TONE_OPTIONS = [
+  "Professional",
+  "Friendly",
+  "Technical",
+  "Persuasive",
+  "Conversational",
+];
+
+const LENGTH_OPTIONS = [
+  { value: "short", label: "Short ~400 words" },
+  { value: "medium", label: "Medium ~800 words" },
+  { value: "long", label: "Long ~1200 words" },
+];
+
+const LINK_POLICY_OPTIONS = [
+  { value: "internal_only", label: "Internal links only (recommended)" },
+  { value: "no_links", label: "No links" },
+  { value: "allow_all", label: "Allow all links" },
+] as const;
+
+const DEFAULT_AI_MODELS: AIModelOption[] = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
-  { value: "gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)" },
 ];
+
+const DEFAULT_SETTINGS: Omit<AppSettings, "id"> = {
+  company_name: "Red Flag Security",
+  company_description: "Canadian company that installs alarm systems, CCTV cameras, access control systems, and provides 24/7 alarm monitoring.",
+  website_url: "https://redflagsecurity.ca",
+  default_author: "Red Flag Security Team",
+  default_tone: "Professional",
+  default_article_length: "medium",
+  default_model: "gemini-2.5-flash",
+  ai_models: DEFAULT_AI_MODELS,
+  ai_instructions: "",
+  ai_forbidden_topics: "",
+  ai_forbidden_companies: "",
+  ai_link_policy: "internal_only",
+  seo_default_keywords: [],
+  categories: [],
+};
+
+function TagInput({
+  values,
+  onChange,
+  placeholder,
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}) {
+  const [input, setInput] = useState("");
+
+  const add = (raw: string) => {
+    const tag = raw.trim().replace(/^[,]+|[,]+$/g, "");
+    if (!tag || values.includes(tag)) return;
+    onChange([...values, tag]);
+    setInput("");
+  };
+
+  const remove = (index: number) => {
+    onChange(values.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 min-h-[42px]">
+      {values.map((v, i) => (
+        <span
+          key={`${v}-${i}`}
+          className="inline-flex items-center gap-1 rounded-full bg-slate-700 px-3 py-1 text-sm text-white"
+        >
+          {v}
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="rounded-full p-0.5 hover:bg-slate-600 text-slate-400 hover:text-white"
+            aria-label={`Remove ${v}`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            add(input);
+          }
+        }}
+        onBlur={() => input.trim() && add(input)}
+        placeholder={placeholder}
+        className="flex-1 min-w-[120px] bg-transparent text-white placeholder:text-slate-500 border-none outline-none text-sm py-1"
+      />
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [model, setModel] = useState(GEMINI_MODEL_DEFAULT);
-  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; error?: boolean } | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [initial, setInitial] = useState<Omit<AppSettings, "id"> | null>(null);
+  const [form, setForm] = useState<Omit<AppSettings, "id">>(DEFAULT_SETTINGS);
+  const [newModelInput, setNewModelInput] = useState("");
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
+    if (status === "unauthenticated") router.push("/");
   }, [status, router]);
 
-  useEffect(() => {
-    setMounted(true);
+  const loadSettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (!res.ok) return;
+      const s = data.settings as AppSettings;
+      if (s) {
+        const next = {
+          company_name: s.company_name ?? DEFAULT_SETTINGS.company_name,
+          company_description: s.company_description ?? DEFAULT_SETTINGS.company_description,
+          website_url: s.website_url ?? DEFAULT_SETTINGS.website_url,
+          default_author: s.default_author ?? DEFAULT_SETTINGS.default_author,
+          default_tone: s.default_tone ?? DEFAULT_SETTINGS.default_tone,
+          default_article_length: s.default_article_length ?? DEFAULT_SETTINGS.default_article_length,
+          default_model: s.default_model ?? DEFAULT_SETTINGS.default_model,
+          ai_models: Array.isArray(s.ai_models) && s.ai_models.length > 0
+            ? s.ai_models.map((m: { value?: string; label?: string }) => ({
+                value: String(m?.value ?? "").trim(),
+                label: String(m?.label ?? m?.value ?? "").trim(),
+              })).filter((m) => m.value && m.label)
+            : DEFAULT_AI_MODELS,
+          ai_instructions: s.ai_instructions ?? "",
+          ai_forbidden_topics: s.ai_forbidden_topics ?? "",
+          ai_forbidden_companies: s.ai_forbidden_companies ?? "",
+          ai_link_policy: s.ai_link_policy ?? "internal_only",
+          seo_default_keywords: Array.isArray(s.seo_default_keywords) ? s.seo_default_keywords : [],
+          categories: Array.isArray(s.categories) ? s.categories : [],
+        };
+        setForm(next);
+        setInitial(next);
+      }
+    } catch (e) {
+      console.error("Failed to load settings", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
-    setModel(getStoredGeminiModel());
-  }, [mounted]);
+    if (session) loadSettings();
+  }, [session, loadSettings]);
 
-  const handleModelChange = (value: string) => {
-    setModel(value);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(GEMINI_MODEL_KEY, value);
+  const hasChanges =
+    initial !== null &&
+    (JSON.stringify(form) !== JSON.stringify(initial));
+
+  const update = (updates: Partial<Omit<AppSettings, "id">>) => {
+    setForm((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save");
+      setInitial(form);
+      setToast({ message: "Settings saved." });
+      setTimeout(() => setToast(null), 3000);
+    } catch (e) {
+      setToast({ message: e instanceof Error ? e.message : "Failed to save", error: true });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setForm(DEFAULT_SETTINGS);
+    setInitial(DEFAULT_SETTINGS);
+    setShowResetModal(false);
+    setSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(DEFAULT_SETTINGS),
+      });
+      setToast({ message: "Settings reset to defaults." });
+      setTimeout(() => setToast(null), 3000);
+    } catch (e) {
+      setToast({ message: "Failed to reset settings.", error: true });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setSaving(false);
     }
   };
 
   if (status === "loading" || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
       </div>
     );
   }
@@ -53,76 +226,295 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
       <main className="ml-64 p-6 md:p-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-slate-400 mt-1">
-            Manage your account and preferences
-          </p>
+        {/* Sticky header with title and Save */}
+        <div className="sticky top-0 z-10 -mx-6 md:-mx-8 px-6 md:px-8 py-4 bg-slate-950/95 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 mb-8">
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <SettingsIcon className="w-7 h-7 text-slate-400" />
+            Settings
+          </h1>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:pointer-events-none text-white rounded-lg px-6 py-2.5 font-medium transition-colors"
+          >
+            {hasChanges && (
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse" title="Unsaved changes" />
+            )}
+            {saving ? "Saving…" : "Save Settings"}
+          </button>
         </div>
 
-        <div className="space-y-6 max-w-2xl">
-          {/* Gemini model preference */}
-          <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-            <h2 className="text-lg font-semibold text-white mb-2">
-              AI (Gemini) model
-            </h2>
-            <p className="text-sm text-slate-400 mb-4">
-              Default model used for AI features (article generation, metadata, etc.). Stored in your browser.
-            </p>
-            <select
-              value={model}
-              onChange={(e) => handleModelChange(e.target.value)}
-              className="w-full max-w-xs px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-slate-100"
-            >
-              {MODEL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+        {toast && (
+          <div
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 text-white rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 ${
+              toast.error ? "bg-red-500/95" : "bg-emerald-600/95"
+            }`}
+          >
+            <span>{toast.message}</span>
+            <button type="button" onClick={() => setToast(null)} className="p-1 hover:bg-white/20 rounded">
+              <X className="w-4 h-4" />
+            </button>
           </div>
+        )}
 
-          {/* Coming soon */}
-          <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-            <SettingsIcon className="w-10 h-10 text-slate-500 mb-3" />
-            <p className="text-slate-400">Other settings coming soon.</p>
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-red-500" />
           </div>
+        ) : (
+          <div className="space-y-6 max-w-3xl">
+            {/* Section 1 — Company Information */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                Company Information
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Company Name</label>
+                  <input
+                    type="text"
+                    value={form.company_name}
+                    onChange={(e) => update({ company_name: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Company Description</label>
+                  <textarea
+                    value={form.company_description}
+                    onChange={(e) => update({ company_description: e.target.value })}
+                    rows={3}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Website URL</label>
+                  <input
+                    type="url"
+                    value={form.website_url}
+                    onChange={(e) => update({ website_url: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Default Author</label>
+                  <input
+                    type="text"
+                    value={form.default_author}
+                    onChange={(e) => update({ default_author: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                  />
+                </div>
+              </div>
+            </section>
 
-          {/* Info */}
-          <div className="bg-slate-900 rounded-xl border border-slate-800 p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">About</h2>
-            <ul className="space-y-3 text-sm">
-              <li className="flex items-center gap-2 text-slate-300">
-                <span className="text-slate-500 w-24 shrink-0">Version</span>
-                <span>0.1.0</span>
-              </li>
-              <li className="flex items-center gap-2 text-slate-300">
-                <span className="text-slate-500 w-24 shrink-0">Repository</span>
-                <a
-                  href="https://github.com/gfahd/rfs-website"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
-                >
-                  GitHub
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </li>
-              <li className="flex items-center gap-2 text-slate-300">
-                <span className="text-slate-500 w-24 shrink-0">Docs</span>
-                <a
-                  href="https://github.com/gfahd/rfs-website#readme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
-                >
-                  Documentation
-                  <BookOpen className="w-4 h-4" />
-                </a>
-              </li>
-            </ul>
+            {/* Section 2 — AI Defaults */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                AI Defaults
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-3 mb-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Default Model</label>
+                  <select
+                    value={form.ai_models.some((o) => o.value === form.default_model) ? form.default_model : form.ai_models[0]?.value}
+                    onChange={(e) => update({ default_model: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                  >
+                    {form.ai_models.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2 flex items-end gap-2">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-sm font-medium text-slate-300 mb-1 block">Add model</label>
+                    <input
+                      type="text"
+                      value={newModelInput}
+                      onChange={(e) => setNewModelInput(e.target.value)}
+                      placeholder="e.g. gemini-1.5-flash"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = newModelInput.trim();
+                      if (!id || form.ai_models.some((m) => m.value === id)) return;
+                      const entry = { value: id, label: id };
+                      update({ ai_models: [...form.ai_models, entry], default_model: id });
+                      setNewModelInput("");
+                    }}
+                    disabled={!newModelInput.trim()}
+                    className="px-4 py-2.5 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:pointer-events-none text-white text-sm font-medium shrink-0"
+                  >
+                    Add & set default
+                  </button>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Default Tone</label>
+                  <select
+                    value={form.default_tone}
+                    onChange={(e) => update({ default_tone: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                  >
+                    {TONE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Default Length</label>
+                  <select
+                    value={form.default_article_length}
+                    onChange={(e) => update({ default_article_length: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                  >
+                    {LENGTH_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 3 — AI Instructions */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                AI Instructions
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Custom Instructions</label>
+                  <textarea
+                    value={form.ai_instructions}
+                    onChange={(e) => update({ ai_instructions: e.target.value })}
+                    rows={6}
+                    placeholder="e.g., Always spell company name as 'RedFlag Security' (one word). Always mention our 24/7 monitoring."
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Forbidden Competitors</label>
+                  <textarea
+                    value={form.ai_forbidden_companies}
+                    onChange={(e) => update({ ai_forbidden_companies: e.target.value })}
+                    rows={3}
+                    placeholder={`One per line:\nADT\nSimplisafe\nRing`}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Forbidden Topics</label>
+                  <textarea
+                    value={form.ai_forbidden_topics}
+                    onChange={(e) => update({ ai_forbidden_topics: e.target.value })}
+                    rows={3}
+                    placeholder="Topics AI should avoid, one per line"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Section 4 — Link Policy */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                Link Policy
+              </h2>
+              <div className="space-y-2">
+                {LINK_POLICY_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="ai_link_policy"
+                      value={opt.value}
+                      checked={form.ai_link_policy === opt.value}
+                      onChange={() => update({ ai_link_policy: opt.value })}
+                      className="w-4 h-4 text-red-500 bg-slate-800 border-slate-600 focus:ring-red-500"
+                    />
+                    <span className="text-slate-200">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            {/* Section 5 — Content Organization */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                Content Organization
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Categories</label>
+                  <TagInput
+                    values={form.categories}
+                    onChange={(categories) => update({ categories })}
+                    placeholder="Add category…"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-300 mb-1 block">Default SEO Keywords</label>
+                  <TagInput
+                    values={form.seo_default_keywords}
+                    onChange={(seo_default_keywords) => update({ seo_default_keywords })}
+                    placeholder="Add keyword…"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Section 6 — Danger Zone */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-red-900/50 border-2">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                Danger Zone
+              </h2>
+              <p className="text-sm text-slate-400 mb-4">
+                Reset all settings to default values. This cannot be undone.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(true)}
+                className="px-4 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                Reset to Defaults
+              </button>
+            </section>
           </div>
-        </div>
+        )}
+
+        {/* Reset confirmation modal */}
+        {showResetModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60" onClick={() => setShowResetModal(false)}>
+            <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-w-md w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-white mb-2">Reset to defaults?</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                All settings will be replaced with default values and saved immediately.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-700 text-slate-200 hover:bg-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

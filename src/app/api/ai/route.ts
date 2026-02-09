@@ -6,7 +6,31 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getSettings, type AppSettings } from "@/lib/settings";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
+function buildSystemPromptPrefix(settings: AppSettings): string {
+  const parts: string[] = [];
+  parts.push(`Company: ${settings.company_name}. ${settings.company_description}`);
+  if (settings.website_url) parts.push(`Website: ${settings.website_url}`);
+  if (settings.ai_instructions?.trim()) {
+    parts.push(`IMPORTANT INSTRUCTIONS: ${settings.ai_instructions.trim()}`);
+  }
+  if (settings.ai_forbidden_companies?.trim()) {
+    const companies = settings.ai_forbidden_companies.trim().split(/\n/).filter(Boolean).join(", ");
+    if (companies) parts.push(`NEVER mention these competitors: ${companies}`);
+  }
+  if (settings.ai_forbidden_topics?.trim()) {
+    const topics = settings.ai_forbidden_topics.trim().split(/\n/).filter(Boolean).join(", ");
+    if (topics) parts.push(`NEVER write about: ${topics}`);
+  }
+  if (settings.ai_link_policy === "internal_only" && settings.website_url) {
+    parts.push(`Only include links to ${settings.website_url}. No external links.`);
+  } else if (settings.ai_link_policy === "no_links") {
+    parts.push("Do not include any links.");
+  }
+  return parts.join("\n\n") + (parts.length > 0 ? "\n\n" : "");
+}
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const genAI = GEMINI_API_KEY
@@ -22,7 +46,6 @@ const VALID_ACTIONS = [
 ] as const;
 
 type Action = (typeof VALID_ACTIONS)[number];
-type ModelId = "gemini-2.5-flash" | "gemini-2.0-flash" | "gemini-3-flash-preview";
 
 const GENERATE_ARTICLE_SYSTEM = `You are a professional content writer for Red Flag Security, a Canadian company that installs alarm systems, CCTV cameras, access control systems, and provides 24/7 alarm monitoring. Write informative, engaging blog articles. Use proper markdown formatting with ## for headings, **bold** for emphasis, and clear paragraph structure. Include an introduction, multiple sections with headings, and a conclusion. Do NOT include the title as an H1 — just the body content. Include internal link suggestions at the end formatted as: 'Internal Links: [text](url suggestion)' and external reference suggestions as: 'External Links: [text](url suggestion)'.`;
 
@@ -81,12 +104,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const modelId: ModelId =
-    model === "gemini-2.0-flash"
-      ? "gemini-2.0-flash"
-      : model === "gemini-3-flash-preview"
-        ? "gemini-3-flash-preview"
-        : "gemini-2.5-flash";
+  const settings = await getSettings();
+  const allowedValues = settings.ai_models.map((m) => m.value).filter(Boolean);
+  const modelId =
+    typeof model === "string" && allowedValues.includes(model)
+      ? model
+      : allowedValues.includes(settings.default_model)
+        ? settings.default_model
+        : allowedValues[0] ?? "gemini-2.5-flash";
+  const systemPrefix = buildSystemPromptPrefix(settings);
 
   try {
     if (action === "generate_article") {
@@ -101,17 +127,23 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      const effectiveTone = tone ?? settings.default_tone;
+      const lengthFromSettings =
+        settings.default_article_length === "short" || settings.default_article_length === "long"
+          ? settings.default_article_length
+          : "medium";
+      const effectiveLength = length ?? lengthFromSettings;
       const geminiModel = genAI.getGenerativeModel({
         model: modelId,
-        systemInstruction: GENERATE_ARTICLE_SYSTEM,
+        systemInstruction: systemPrefix + GENERATE_ARTICLE_SYSTEM,
       });
       const lengthHint =
-        length === "short"
+        effectiveLength === "short"
           ? "Keep it concise (about 400–600 words)."
-          : length === "long"
+          : effectiveLength === "long"
             ? "Write a comprehensive article (about 1200–1500 words)."
             : "Aim for about 800–1000 words.";
-      const userPrompt = `Topic: ${topic}${tone ? `\nTone: ${tone}` : ""}\n${lengthHint}`;
+      const userPrompt = `Topic: ${topic}${effectiveTone ? `\nTone: ${effectiveTone}` : ""}\n${lengthHint}`;
       const result = await geminiModel.generateContent(userPrompt);
       const text = result.response.text();
       return NextResponse.json({ content: text });
@@ -128,7 +160,11 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      const geminiModel = genAI.getGenerativeModel({ model: modelId });
+      const improveSystem = systemPrefix + IMPROVE_TEXT_DEFAULT;
+      const geminiModel = genAI.getGenerativeModel({
+        model: modelId,
+        systemInstruction: improveSystem,
+      });
       const inst =
         typeof instruction === "string" && instruction.trim()
           ? instruction.trim()
@@ -152,7 +188,7 @@ export async function POST(request: Request) {
       }
       const geminiModel = genAI.getGenerativeModel({
         model: modelId,
-        systemInstruction: GENERATE_METADATA_SYSTEM,
+        systemInstruction: systemPrefix + GENERATE_METADATA_SYSTEM,
       });
       const userPrompt = title
         ? `Title (optional context): ${title}\n\nArticle content:\n\n${content}`
@@ -188,7 +224,7 @@ export async function POST(request: Request) {
       }
       const geminiModel = genAI.getGenerativeModel({
         model: modelId,
-        systemInstruction: EXTRACT_FROM_URL_SYSTEM,
+        systemInstruction: systemPrefix + EXTRACT_FROM_URL_SYSTEM,
       });
       const userPrompt = `URL: ${url}\n\nContent from the page (for topic context only; do not copy):\n\n${pageContent}`;
       const result = await geminiModel.generateContent(userPrompt);
@@ -218,7 +254,7 @@ export async function POST(request: Request) {
       }
       const geminiModel = genAI.getGenerativeModel({
         model: modelId,
-        systemInstruction: GENERATE_IMAGE_PROMPT_SYSTEM,
+        systemInstruction: systemPrefix + GENERATE_IMAGE_PROMPT_SYSTEM,
       });
       const userPrompt = `Title: ${title || "Untitled"}\n\nContent (excerpt):\n${(content || "").slice(0, 2000)}`;
       const result = await geminiModel.generateContent(userPrompt);

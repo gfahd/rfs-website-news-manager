@@ -23,7 +23,12 @@ import {
   Wand2,
   Loader2,
 } from "lucide-react";
-import { getStoredGeminiModel } from "@/lib/settings";
+import { getStoredGeminiModel, type AIModelOption } from "@/lib/settings";
+
+const FALLBACK_MODEL_OPTIONS: AIModelOption[] = [
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+];
 
 const CATEGORIES = [
   { value: "threat-intel", label: "Threat Intelligence" },
@@ -63,9 +68,25 @@ export default function NewArticlePage() {
     new Date().toISOString().split("T")[0]
   );
   const [model, setModel] = useState("gemini-2.5-flash");
+  const [modelOptions, setModelOptions] = useState<AIModelOption[]>(FALLBACK_MODEL_OPTIONS);
   useEffect(() => {
     setModel(getStoredGeminiModel());
   }, []);
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = data.settings?.ai_models;
+        if (Array.isArray(list) && list.length > 0) {
+          setModelOptions(list.filter((m: { value?: string; label?: string }) => m?.value && m?.label));
+          const defaultId = data.settings?.default_model;
+          if (defaultId && list.some((m: { value: string }) => m.value === defaultId)) setModel(defaultId);
+          else if (!list.some((m: { value: string }) => m.value === model)) setModel(list[0].value);
+        }
+      })
+      .catch(() => {});
+  }, [session]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingAction, setGeneratingAction] = useState<string>("");
 
@@ -413,13 +434,13 @@ export default function NewArticlePage() {
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg">
                 <Sparkles className="w-4 h-4 text-slate-400 shrink-0" />
                 <select
-                  value={model}
+                  value={modelOptions.some((o) => o.value === model) ? model : modelOptions[0]?.value ?? model}
                   onChange={(e) => setModel(e.target.value)}
                   className="bg-transparent text-slate-200 text-sm focus:outline-none border-none py-1 pr-1 cursor-pointer"
                 >
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
+                  {modelOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
               <button
@@ -867,13 +888,13 @@ export default function NewArticlePage() {
                 <div className="mt-4 pt-4 border-t border-slate-700">
                   <label className="block text-xs text-slate-500 mb-1">Gemini model</label>
                   <select
-                    value={model}
+                    value={modelOptions.some((o) => o.value === model) ? model : modelOptions[0]?.value ?? model}
                     onChange={(e) => setModel(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-red-500"
                   >
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                    <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</option>
+                    {modelOptions.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
