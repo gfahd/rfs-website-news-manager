@@ -2,10 +2,10 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Settings as SettingsIcon, X, AlertTriangle } from "lucide-react";
-import type { AppSettings, AIModelOption } from "@/lib/settings";
+import type { AppSettings, AIModelOption } from "@/lib/settings-client";
 
 const TONE_OPTIONS = [
   "Professional",
@@ -117,6 +117,7 @@ export default function SettingsPage() {
   const [initial, setInitial] = useState<Omit<AppSettings, "id"> | null>(null);
   const [form, setForm] = useState<Omit<AppSettings, "id">>(DEFAULT_SETTINGS);
   const [newModelInput, setNewModelInput] = useState("");
+  const loadedOnceRef = useRef(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -161,7 +162,10 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (session) loadSettings();
+    if (session && !loadedOnceRef.current) {
+      loadedOnceRef.current = true;
+      loadSettings();
+    }
   }, [session, loadSettings]);
 
   const hasChanges =

@@ -7,7 +7,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Plus, Search, Trash2, Star, Clock, Eye, X } from "lucide-react";
 import Link from "next/link";
@@ -53,6 +53,7 @@ function ArticlesPageContent() {
   const [deleteTarget, setDeleteTarget] = useState<{ slug: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeployBanner, setShowDeployBanner] = useState(false);
+  const loadedOnceRef = useRef(false);
 
   useEffect(() => {
     if (searchParams.get("deploy") === "1") {
@@ -80,7 +81,8 @@ function ArticlesPageContent() {
       }
     }
 
-    if (session) {
+    if (session && !loadedOnceRef.current) {
+      loadedOnceRef.current = true;
       fetchArticles();
     }
   }, [session]);

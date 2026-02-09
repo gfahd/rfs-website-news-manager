@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import {
   FileText,
@@ -41,6 +41,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadedOnceRef = useRef(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -61,7 +62,8 @@ export default function DashboardPage() {
       }
     }
 
-    if (session) {
+    if (session && !loadedOnceRef.current) {
+      loadedOnceRef.current = true;
       fetchArticles();
     }
   }, [session]);

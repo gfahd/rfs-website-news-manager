@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Image as ImageIcon, Upload, Copy, Check } from "lucide-react";
 
@@ -24,6 +24,7 @@ export default function MediaPage() {
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const loadedOnceRef = useRef(false);
 
   const fetchImages = useCallback(async () => {
     try {
@@ -44,7 +45,10 @@ export default function MediaPage() {
   }, [status, router]);
 
   useEffect(() => {
-    if (session) fetchImages();
+    if (session && !loadedOnceRef.current) {
+      loadedOnceRef.current = true;
+      fetchImages();
+    }
   }, [session, fetchImages]);
 
   const uploadFiles = useCallback(

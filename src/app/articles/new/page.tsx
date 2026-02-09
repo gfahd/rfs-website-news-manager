@@ -7,7 +7,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import Link from "next/link";
 import {
@@ -23,7 +23,7 @@ import {
   Wand2,
   Loader2,
 } from "lucide-react";
-import { getStoredGeminiModel, type AIModelOption } from "@/lib/settings";
+import { getStoredGeminiModel, type AIModelOption } from "@/lib/settings-client";
 
 const FALLBACK_MODEL_OPTIONS: AIModelOption[] = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -69,11 +69,14 @@ export default function NewArticlePage() {
   );
   const [model, setModel] = useState("gemini-2.5-flash");
   const [modelOptions, setModelOptions] = useState<AIModelOption[]>(FALLBACK_MODEL_OPTIONS);
+  const settingsLoadedRef = useRef(false);
+  const imagesLoadedRef = useRef(false);
   useEffect(() => {
     setModel(getStoredGeminiModel());
   }, []);
   useEffect(() => {
-    if (!session) return;
+    if (!session || settingsLoadedRef.current) return;
+    settingsLoadedRef.current = true;
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
@@ -122,7 +125,10 @@ export default function NewArticlePage() {
         console.error("Failed to fetch images:", error);
       }
     }
-    if (session) fetchImages();
+    if (session && !imagesLoadedRef.current) {
+      imagesLoadedRef.current = true;
+      fetchImages();
+    }
   }, [session]);
 
   const showError = useCallback((message: string) => {
