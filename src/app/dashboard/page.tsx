@@ -6,40 +6,30 @@ import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import {
   FileText,
-  Eye,
-  Clock,
-  Star,
+  CheckCircle2,
+  PenLine,
+  Tag,
   Sparkles,
   Image,
   Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 
-const CATEGORY_STYLES: Record<string, string> = {
-  "threat-intel": "bg-red-500/15 text-red-400",
-  technology: "bg-blue-500/15 text-blue-400",
-  "company-news": "bg-slate-500/15 text-slate-400",
-  guides: "bg-emerald-500/15 text-emerald-400",
-  "security-tips": "bg-amber-500/15 text-amber-400",
-  "industry-trends": "bg-violet-500/15 text-violet-400",
+type ArticleItem = {
+  slug: string;
+  title: string;
+  category: string;
+  publishedAt: string;
+  draft: boolean;
+  author?: string;
+  created_at?: string;
 };
-
-function CategoryBadge({ category }: { category: string }) {
-  const style =
-    CATEGORY_STYLES[category] ?? "bg-slate-500/15 text-slate-400";
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${style}`}
-    >
-      {category}
-    </span>
-  );
-}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [articles, setArticles] = useState<any[]>([]);
+  const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedOnceRef = useRef(false);
 
@@ -76,38 +66,42 @@ export default function DashboardPage() {
     );
   }
 
+  const countPublished = articles.filter((a: ArticleItem) => !a.draft).length;
+  const countDrafts = articles.filter((a: ArticleItem) => a.draft).length;
+  const categories = Array.from(new Set(articles.map((a: ArticleItem) => a.category).filter(Boolean)));
+
   const stats = [
     {
       name: "Total Articles",
       value: articles.length,
       icon: FileText,
-      color: "text-blue-400",
-      bg: "bg-blue-500/15",
+      color: "text-slate-300",
+      bg: "bg-slate-500/15",
     },
     {
       name: "Published",
-      value: articles.filter((a: any) => !a.draft).length,
-      icon: Eye,
+      value: countPublished,
+      icon: CheckCircle2,
       color: "text-green-400",
       bg: "bg-green-500/15",
     },
     {
       name: "Drafts",
-      value: articles.filter((a: any) => a.draft).length,
-      icon: Clock,
+      value: countDrafts,
+      icon: PenLine,
       color: "text-amber-400",
       bg: "bg-amber-500/15",
     },
     {
-      name: "Featured",
-      value: articles.filter((a: any) => a.featured).length,
-      icon: Star,
-      color: "text-red-400",
-      bg: "bg-red-500/15",
+      name: "Categories",
+      value: categories.length,
+      icon: Tag,
+      color: "text-violet-400",
+      bg: "bg-violet-500/15",
     },
   ];
 
-  const firstName = session.user?.name?.split(" ")[0] ?? "there";
+  const firstName = session?.user?.name?.split(" ")[0] ?? "there";
   const today = new Date().toLocaleDateString("en-CA", {
     weekday: "long",
     year: "numeric",
@@ -115,12 +109,19 @@ export default function DashboardPage() {
     day: "numeric",
   });
 
+  const recentArticles = [...articles]
+    .sort((a, b) => {
+      const aDate = a.draft && a.created_at ? new Date(a.created_at).getTime() : new Date(a.publishedAt).getTime();
+      const bDate = b.draft && b.created_at ? new Date(b.created_at).getTime() : new Date(b.publishedAt).getTime();
+      return bDate - aDate;
+    })
+    .slice(0, 5);
+
   return (
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
 
       <main className="md:ml-64 min-h-screen p-4 pt-16 md:p-8">
-        {/* Header: welcome left, app name right */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">
@@ -133,29 +134,47 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Stats row */}
+        <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => (
             <div
               key={stat.name}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg shadow-black/20"
+              className="rounded-xl border border-slate-800 bg-slate-900 p-5"
             >
               <div className="flex items-center gap-4">
                 <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.bg}`}
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${stat.bg}`}
                 >
                   <stat.icon className={`h-6 w-6 ${stat.color}`} />
                 </div>
-                <div>
-                  <div className="text-2xl font-bold text-white">
-                    {stat.value}
+                <div className="min-w-0">
+                  <div className="text-3xl font-bold text-white">
+                    {loading ? "…" : stat.value}
                   </div>
-                  <div className="text-sm text-slate-500">{stat.name}</div>
+                  <div className="text-sm text-slate-400">{stat.name}</div>
                 </div>
               </div>
             </div>
           ))}
         </div>
+
+        {/* Draft articles alert */}
+        {!loading && countDrafts > 0 && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+              <span className="text-amber-200 font-medium">
+                You have {countDrafts} unpublished draft{countDrafts !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <Link
+              href="/articles?status=draft"
+              className="inline-flex items-center gap-2 rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-500/30 transition-colors"
+            >
+              View Drafts
+            </Link>
+          </div>
+        )}
 
         {/* Quick actions */}
         <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -191,7 +210,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent articles */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 shadow-lg shadow-black/20">
+        <div className="rounded-xl border border-slate-800 bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-800 p-6">
             <h2 className="font-semibold text-white">Recent Articles</h2>
             <Link
@@ -215,45 +234,39 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-800">
-              {articles.slice(0, 5).map((article: any) => (
-                <Link
+              {recentArticles.map((article: ArticleItem) => (
+                <div
                   key={article.slug}
-                  href={`/articles/${article.slug}`}
                   className="group flex flex-wrap items-center gap-4 p-4 transition-colors hover:bg-slate-800/50"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-white">
-                      {article.title}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                      {article.draft ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
-                          <Clock className="h-3 w-3" />
-                          Draft
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-400">
-                          Published
-                        </span>
-                      )}
-                      <CategoryBadge category={article.category} />
-                      <span>
-                        {new Date(article.publishedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {article.featured && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-400">
-                        <Star className="h-3 w-3" />
-                        Featured
-                      </span>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    {article.draft ? (
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
+                    ) : (
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" aria-hidden />
                     )}
-                    <span className="text-slate-500 transition-colors group-hover:text-red-500">
-                      <Pencil className="h-4 w-4" />
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-white">
+                        {article.title}
+                        {article.draft && (
+                          <span className="ml-2 text-xs font-normal text-amber-400">Draft</span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-sm text-slate-500">
+                        {article.draft && article.created_at
+                          ? `Created: ${new Date(article.created_at).toLocaleDateString()}`
+                          : new Date(article.publishedAt).toLocaleDateString()}
+                      </div>
+                    </div>
                   </div>
-                </Link>
+                  <Link
+                    href={`/articles/${article.slug}`}
+                    className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-red-500"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Link>
+                </div>
               ))}
             </div>
           )}

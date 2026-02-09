@@ -1,6 +1,6 @@
 // ============================================
 // FILE: src/app/articles/page.tsx
-// Articles List Page
+// Articles List Page — draft vs published, filtering, table
 // ============================================
 
 "use client";
@@ -9,18 +9,17 @@ import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Plus, Search, Trash2, Star, Clock, Eye, X } from "lucide-react";
+import {
+  FileText,
+  Search,
+  Trash2,
+  Pencil,
+  MoreHorizontal,
+  X,
+  CheckCircle2,
+  Plus,
+} from "lucide-react";
 import Link from "next/link";
-
-const CATEGORY_PILLS: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "threat-intel", label: "Threat Intel" },
-  { value: "technology", label: "Technology" },
-  { value: "company-news", label: "Company News" },
-  { value: "guides", label: "Guides" },
-  { value: "security-tips", label: "Security Tips" },
-  { value: "industry-trends", label: "Industry Trends" },
-];
 
 const CATEGORY_STYLES: Record<string, string> = {
   "threat-intel": "bg-red-500/15 text-red-400",
@@ -30,6 +29,15 @@ const CATEGORY_STYLES: Record<string, string> = {
   "security-tips": "bg-amber-500/15 text-amber-400",
   "industry-trends": "bg-violet-500/15 text-violet-400",
 };
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "updated", label: "Recently updated" },
+  { value: "az", label: "A-Z" },
+] as const;
+
+type SortValue = (typeof SORT_OPTIONS)[number]["value"];
 
 function CategoryBadge({ category }: { category: string }) {
   const style = CATEGORY_STYLES[category] ?? "bg-slate-500/15 text-slate-400";
@@ -42,18 +50,64 @@ function CategoryBadge({ category }: { category: string }) {
   );
 }
 
+type ArticleItem = {
+  slug: string;
+  title: string;
+  excerpt?: string;
+  content?: string;
+  category: string;
+  publishedAt: string;
+  coverImage?: string;
+  tags?: string[];
+  author?: string;
+  featured?: boolean;
+  draft: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 function ArticlesPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [articles, setArticles] = useState<any[]>([]);
+  const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [sortBy, setSortBy] = useState<SortValue>("newest");
+  const initialStatus = searchParams.get("status") || "all";
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">(
+    initialStatus === "draft" ? "draft" : initialStatus === "published" ? "published" : "all"
+  );
   const [deleteTarget, setDeleteTarget] = useState<{ slug: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeployBanner, setShowDeployBanner] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const loadedOnceRef = useRef(false);
+
+  const PAGE_SIZE = 20;
+
+  // Sync status filter from URL when user navigates (e.g. "View Drafts" link or back button)
+  useEffect(() => {
+    const s = searchParams.get("status");
+    setStatusFilter(s === "draft" ? "draft" : s === "published" ? "published" : "all");
+  }, [searchParams]);
+
+  // Sync URL when status filter changes (tab click)
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (statusFilter === "all") {
+      params.delete("status");
+    } else {
+      params.set("status", statusFilter);
+    }
+    const qs = params.toString();
+    const newUrl = qs ? `/articles?${qs}` : "/articles";
+    if (typeof window !== "undefined" && (window.location.pathname + (window.location.search || "")) !== newUrl) {
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [statusFilter, router, searchParams]);
 
   useEffect(() => {
     if (searchParams.get("deploy") === "1") {
@@ -94,6 +148,7 @@ function ArticlesPageContent() {
       if (res.ok) {
         setArticles((prev) => prev.filter((a) => a.slug !== slug));
         setDeleteTarget(null);
+        setActionsOpen(null);
       }
     } catch (error) {
       console.error("Failed to delete:", error);
@@ -102,19 +157,54 @@ function ArticlesPageContent() {
     }
   };
 
+  const categoriesFromArticles = Array.from(
+    new Set(articles.map((a) => a.category).filter(Boolean))
+  ).sort();
+  const categoryOptions = [{ value: "all", label: "All Categories" }, ...categoriesFromArticles.map((c) => ({ value: c, label: c.replace(/-/g, " ") }))];
+
   const filteredArticles = articles
     .filter((article) => {
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "published" && !article.draft) ||
+        (statusFilter === "draft" && article.draft);
+      const searchLower = searchTerm.toLowerCase().trim();
       const matchesSearch =
-        article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (article.excerpt && article.excerpt.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesCategory =
-        filterCategory === "all" || article.category === filterCategory;
-      return matchesSearch && matchesCategory;
+        !searchLower ||
+        article.title.toLowerCase().includes(searchLower) ||
+        (article.excerpt && article.excerpt.toLowerCase().includes(searchLower)) ||
+        (article.tags && article.tags.some((t: string) => t.toLowerCase().includes(searchLower)));
+      const matchesCategory = filterCategory === "all" || article.category === filterCategory;
+      return matchesStatus && matchesSearch && matchesCategory;
     })
-    .sort(
-      (a, b) =>
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-    );
+    .sort((a, b) => {
+      if (sortBy === "newest") {
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      }
+      if (sortBy === "oldest") {
+        return new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime();
+      }
+      if (sortBy === "updated") {
+        const aUp = a.updated_at ? new Date(a.updated_at).getTime() : new Date(a.publishedAt).getTime();
+        const bUp = b.updated_at ? new Date(b.updated_at).getTime() : new Date(b.publishedAt).getTime();
+        return bUp - aUp;
+      }
+      return (a.title || "").localeCompare(b.title || "");
+    });
+
+  const totalFiltered = filteredArticles.length;
+  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE) || 1;
+  const paginatedArticles = filteredArticles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const countAll = articles.length;
+  const countPublished = articles.filter((a) => !a.draft).length;
+  const countDrafts = articles.filter((a) => a.draft).length;
+
+  const isEmpty = filteredArticles.length === 0;
+  const isSearchActive = searchTerm.trim().length > 0;
+  const showEmptyAll = !loading && statusFilter === "all" && !isSearchActive && countAll === 0;
+  const showEmptyDrafts = !loading && statusFilter === "draft" && !isSearchActive && countDrafts === 0 && countAll > 0;
+  const showEmptySearch = !loading && isEmpty && isSearchActive;
 
   if (status === "loading" || !session) {
     return (
@@ -128,7 +218,6 @@ function ArticlesPageContent() {
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
       <main className="md:ml-64 md:p-8 p-4 pt-16">
-        {/* Deploy reminder banner */}
         {showDeployBanner && (
           <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200">
             <div className="flex-1 min-w-0">
@@ -147,134 +236,321 @@ function ArticlesPageContent() {
             </button>
           </div>
         )}
-        {/* Header */}
+
+        {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
+            <FileText className="h-8 w-8 text-slate-400" />
             <h1 className="text-2xl font-bold text-white">Articles</h1>
-            <span className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-2 rounded-full bg-slate-800 text-slate-300 text-sm font-medium">
-              {loading ? "…" : filteredArticles.length}
-            </span>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div className="relative flex-1 sm:min-w-[220px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search articles..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-slate-100 placeholder:text-slate-500 transition-all"
-              />
-            </div>
-            <Link
-              href="/articles/new"
-              className="flex items-center justify-center gap-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 font-medium transition-colors shrink-0"
-            >
-              <Plus className="w-5 h-5" />
-              New Article
-            </Link>
-          </div>
+          <Link
+            href="/articles/new"
+            className="inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white rounded-lg px-4 py-2.5 font-medium transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            New Article
+          </Link>
         </div>
 
-        {/* Category pills */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {CATEGORY_PILLS.map((cat) => (
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          {/* Status tabs */}
+          <div className="inline-flex rounded-lg bg-slate-800/50 p-0.5">
             <button
-              key={cat.value}
-              onClick={() => setFilterCategory(cat.value)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                filterCategory === cat.value
-                  ? "bg-red-600 text-white"
-                  : "bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-600 hover:text-slate-200"
+              onClick={() => { setStatusFilter("all"); setPage(1); }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === "all"
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              {cat.label}
+              All {loading ? "…" : `(${countAll})`}
             </button>
-          ))}
+            <button
+              onClick={() => { setStatusFilter("published"); setPage(1); }}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === "published"
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden />
+              Published {loading ? "…" : `(${countPublished})`}
+            </button>
+            <button
+              onClick={() => { setStatusFilter("draft"); setPage(1); }}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === "draft"
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden />
+              Drafts {loading ? "…" : `(${countDrafts})`}
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search articles..."
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+              className="w-full pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+            />
+          </div>
+
+          {/* Category dropdown */}
+          <select
+            value={filterCategory}
+            onChange={(e) => { setFilterCategory(e.target.value); setPage(1); }}
+            className="bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-sm py-2 pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-red-500/50 min-w-[160px]"
+          >
+            {categoryOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Sort dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value as SortValue); setPage(1); }}
+            className="bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-sm py-2 pl-4 pr-8 focus:outline-none focus:ring-2 focus:ring-red-500/50 min-w-[160px]"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Articles list - card based */}
+        {/* Content: table or empty state */}
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
           </div>
-        ) : filteredArticles.length === 0 ? (
+        ) : showEmptyAll ? (
           <div className="bg-slate-900 rounded-xl border border-slate-800 p-12 text-center">
-            <p className="text-slate-400 mb-4">
-              No articles yet. Create your first article with AI!
-            </p>
+            <p className="text-slate-400 mb-4">No articles yet. Create your first article!</p>
             <Link
               href="/articles/new"
-              className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white rounded-lg px-4 py-2.5 font-medium transition-colors"
             >
-              <Plus className="w-5 h-5" />
+              <FileText className="w-4 h-4" />
               New Article
             </Link>
           </div>
+        ) : showEmptyDrafts ? (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-12 text-center">
+            <CheckCircle2 className="h-12 w-12 text-green-500/80 mx-auto mb-4" />
+            <p className="text-slate-400">No drafts. All articles are published!</p>
+          </div>
+        ) : showEmptySearch ? (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-12 text-center">
+            <Search className="h-12 w-12 text-slate-500 mx-auto mb-4" />
+            <p className="text-slate-400">No articles match your search</p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {filteredArticles.map((article) => (
-              <article
-                key={article.slug}
-                className="bg-slate-900 rounded-xl p-5 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center gap-4 min-w-0"
-              >
-                <div className="flex-1 min-w-0">
-                  <Link
-                    href={`/articles/${article.slug}`}
-                    className="font-semibold text-white hover:text-red-400 transition-colors block truncate"
-                  >
-                    {article.title}
-                  </Link>
-                  {article.excerpt && (
-                    <p className="text-slate-400 text-sm mt-1 line-clamp-2">
-                      {article.excerpt}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {(article.tags || []).slice(0, 4).map((tag: string) => (
-                      <span
-                        key={tag}
-                        className="inline-flex rounded-md px-2 py-0.5 text-xs bg-slate-800 text-slate-400"
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-xs uppercase text-slate-500 font-medium tracking-wider border-b border-slate-800">
+                    <th className="text-left py-3 px-4">Status</th>
+                    <th className="text-left py-3 px-4">Title</th>
+                    <th className="text-left py-3 px-4">Category</th>
+                    <th className="text-left py-3 px-4">Date</th>
+                    <th className="text-left py-3 px-4">Author</th>
+                    <th className="text-right py-3 px-4 w-16">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedArticles.map((article) => (
+                    <tr
+                      key={article.slug}
+                      className="border-b border-slate-800/50 hover:bg-slate-800/30 transition cursor-pointer"
+                      onClick={() => router.push(`/articles/${article.slug}`)}
+                    >
+                      <td className="py-4 px-4">
+                        {article.draft ? (
+                          <span className="inline-flex items-center gap-2 text-amber-400 text-sm">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            Draft
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 text-green-400 text-sm">
+                            <span className="h-2 w-2 rounded-full bg-green-500" />
+                            Published
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">{article.title}</span>
+                          {article.draft && (
+                            <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full">
+                              Draft
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <CategoryBadge category={article.category} />
+                      </td>
+                      <td className="py-4 px-4 text-sm text-slate-400">
+                        {article.draft && article.created_at ? (
+                          <span className="text-slate-500">Created: {new Date(article.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                        ) : (
+                          new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-sm text-slate-400">
+                        {article.author || "—"}
+                      </td>
+                      <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative inline-block">
+                          <button
+                            type="button"
+                            onClick={() => setActionsOpen(actionsOpen === article.slug ? null : article.slug)}
+                            className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
+                            aria-label="Actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                          {actionsOpen === article.slug && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setActionsOpen(null)}
+                                aria-hidden
+                              />
+                              <div className="absolute right-0 top-full mt-1 z-20 min-w-[120px] rounded-lg bg-slate-800 border border-slate-700 py-1 shadow-xl">
+                                <Link
+                                  href={`/articles/${article.slug}`}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700"
+                                  onClick={() => setActionsOpen(null)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Edit
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteTarget({ slug: article.slug, title: article.title });
+                                    setActionsOpen(null);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-slate-700"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="md:hidden space-y-4">
+              {paginatedArticles.map((article) => (
+                <div
+                  key={article.slug}
+                  onClick={() => router.push(`/articles/${article.slug}`)}
+                  className="bg-slate-900 rounded-xl border border-slate-800 p-4 cursor-pointer hover:bg-slate-800/30 transition"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-white">{article.title}</span>
+                        {article.draft && (
+                          <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full">
+                            Draft
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {article.draft ? (
+                          <span className="inline-flex items-center gap-1.5 text-amber-400 text-sm">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            Draft
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-green-400 text-sm">
+                            <span className="h-2 w-2 rounded-full bg-green-500" />
+                            Published
+                          </span>
+                        )}
+                        <CategoryBadge category={article.category} />
+                        <span className="text-sm text-slate-500">
+                          {article.draft && article.created_at
+                            ? `Created: ${new Date(article.created_at).toLocaleDateString()}`
+                            : new Date(article.publishedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {article.author && (
+                        <p className="text-sm text-slate-400 mt-1">{article.author}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/articles/${article.slug}`}
+                        className="p-2 text-slate-400 hover:text-white rounded-lg"
+                        aria-label="Edit"
                       >
-                        {tag}
-                      </span>
-                    ))}
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget({ slug: article.slug, title: article.title })}
+                        className="p-2 text-slate-400 hover:text-red-400 rounded-lg"
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-                  {article.draft ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
-                      <Clock className="h-3.5 w-3.5" />
-                      Draft
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-400" title="Published">
-                      <Eye className="h-3.5 w-3.5" />
-                      Published
-                    </span>
-                  )}
-                  <CategoryBadge category={article.category} />
-                  <span className="text-sm text-slate-500">
-                    {new Date(article.publishedAt).toLocaleDateString()}
-                  </span>
-                  {article.featured && (
-                    <span title="Featured">
-                      <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-                    </span>
-                  )}
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalFiltered > PAGE_SIZE && (
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-800 pt-4">
+                <p className="text-sm text-slate-500">
+                  Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalFiltered)} of {totalFiltered} articles
+                </p>
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() =>
-                      setDeleteTarget({ slug: article.slug, title: article.title })
-                    }
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-400 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
-                    title="Delete"
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Next
                   </button>
                 </div>
-              </article>
-            ))}
-          </div>
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -288,12 +564,9 @@ function ArticlesPageContent() {
             className="bg-slate-900 rounded-xl border border-slate-700 p-6 mx-4 md:mx-auto max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-white mb-2">
-              Delete article?
-            </h3>
+            <h3 className="text-lg font-semibold text-white mb-2">Delete article?</h3>
             <p className="text-slate-400 text-sm mb-6">
-              “{deleteTarget.title}” will be permanently deleted. This cannot be
-              undone.
+              "{deleteTarget.title}" will be permanently deleted. This cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
