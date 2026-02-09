@@ -11,6 +11,11 @@ const ASPECT_RATIOS = [
   { value: "9:16", label: "9:16 (Portrait)" },
 ] as const;
 
+const IMAGE_MODELS = [
+  { id: "gemini-2.5-flash-image", name: "Nano Banana (Fast)" },
+  { id: "gemini-3-pro-image-preview", name: "Nano Banana Pro (Quality)" },
+];
+
 export interface AIImageGeneratorProps {
   onImageSelected: (imageUrl: string) => void;
   articleTitle?: string;
@@ -32,6 +37,7 @@ export function AIImageGenerator({
   const [promptText, setPromptText] = useState("");
   const [editInstructions, setEditInstructions] = useState("");
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+  const [imageModel, setImageModel] = useState("gemini-2.5-flash-image");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
 
@@ -42,11 +48,13 @@ export function AIImageGenerator({
 
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatedMimeType, setGeneratedMimeType] = useState<string>("image/png");
+  const [generatedModelName, setGeneratedModelName] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ image: string; mimeType: string }>>([]);
 
   const clearGenerated = useCallback(() => {
     setGeneratedImage(null);
     setGeneratedMimeType("image/png");
+    setGeneratedModelName(null);
   }, []);
 
   const handleAutoSuggest = useCallback(async () => {
@@ -89,6 +97,7 @@ export function AIImageGenerator({
           action: "generate",
           prompt: promptText.trim(),
           aspectRatio: aspectRatio || "16:9",
+          model: imageModel,
         }),
       });
       const data = await res.json();
@@ -96,13 +105,15 @@ export function AIImageGenerator({
       if (!data.image) throw new Error("No image was generated.");
       setGeneratedImage(data.image);
       setGeneratedMimeType(data.mimeType || "image/png");
+      const modelName = IMAGE_MODELS.find((m) => m.id === data.model)?.name ?? data.model;
+      setGeneratedModelName(modelName);
       setHistory((prev) => [...prev.slice(-7), { image: data.image, mimeType: data.mimeType || "image/png" }]);
     } catch (e) {
       showError("Image generation failed", e instanceof Error ? e.message : String(e));
     } finally {
       setIsGenerating(false);
     }
-  }, [promptText, aspectRatio, clearGenerated, showError]);
+  }, [promptText, aspectRatio, imageModel, clearGenerated, showError]);
 
   const handleEdit = useCallback(async () => {
     if (!uploadedFile || !editInstructions.trim()) {
@@ -130,6 +141,7 @@ export function AIImageGenerator({
             imageBase64: base64,
             imageMimeType: uploadedFile.type || "image/jpeg",
             aspectRatio: aspectRatio || "16:9",
+            model: imageModel,
           }),
         });
         const data = await res.json();
@@ -137,6 +149,8 @@ export function AIImageGenerator({
         if (!data.image) throw new Error("No image was generated.");
         setGeneratedImage(data.image);
         setGeneratedMimeType(data.mimeType || "image/png");
+        const modelName = IMAGE_MODELS.find((m) => m.id === data.model)?.name ?? data.model;
+        setGeneratedModelName(modelName);
         setHistory((prev) => [...prev.slice(-7), { image: data.image, mimeType: data.mimeType || "image/png" }]);
       } catch (e) {
         showError("Edit failed", e instanceof Error ? e.message : String(e));
@@ -145,7 +159,7 @@ export function AIImageGenerator({
       }
     };
     reader.readAsDataURL(uploadedFile);
-  }, [uploadedFile, editInstructions, aspectRatio, clearGenerated, showError]);
+  }, [uploadedFile, editInstructions, aspectRatio, imageModel, clearGenerated, showError]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -259,6 +273,20 @@ export function AIImageGenerator({
           {tab === "generate" && (
             <>
               <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Image Model</label>
+                <select
+                  value={imageModel}
+                  onChange={(e) => setImageModel(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white text-sm px-4 py-2.5 focus:border-red-500 focus:outline-none mb-4"
+                >
+                  {IMAGE_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Prompt</label>
                 <textarea
                   value={promptText}
@@ -321,6 +349,21 @@ export function AIImageGenerator({
 
           {tab === "edit" && (
             <>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Image Model</label>
+                <select
+                  value={imageModel}
+                  onChange={(e) => setImageModel(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white text-sm px-4 py-2.5 focus:border-red-500 focus:outline-none mb-4"
+                >
+                  {IMAGE_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-400 mb-2">Tip: Use Nano Banana Pro for best editing results</p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Image to edit</label>
                 <div
@@ -420,6 +463,9 @@ export function AIImageGenerator({
                   className="max-h-[400px] w-full object-contain"
                 />
               </div>
+              {generatedModelName && (
+                <p className="text-xs text-slate-500">Generated with {generatedModelName}</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

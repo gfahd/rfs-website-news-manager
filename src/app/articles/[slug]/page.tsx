@@ -68,7 +68,7 @@ type TrendingTopic = {
   why_trending: string;
   category: string;
   interest: string;
-  source_url?: string;
+  source?: string;
 };
 
 export default function EditArticlePage() {
@@ -898,6 +898,11 @@ export default function EditArticlePage() {
                             {topic.interest}
                           </span>
                         </div>
+                        {topic.source && (
+                          <p className="text-xs text-slate-500 italic mt-2 line-clamp-1">
+                            Inspired by: &quot;{topic.source}&quot;
+                          </p>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleWriteFromTopic(topic)}
