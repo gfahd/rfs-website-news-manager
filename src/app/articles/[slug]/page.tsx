@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { getStoredGeminiModel, getAiModelsCache, type AIModelOption } from "@/lib/settings-client";
 import { ArticlePreview } from "@/components/articles/ArticlePreview";
+import { AIImageGenerator } from "@/components/articles/AIImageGenerator";
 
 const FALLBACK_MODEL_OPTIONS: AIModelOption[] = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -130,7 +131,7 @@ export default function EditArticlePage() {
   const [aiTone, setAITone] = useState("Professional");
   const [aiLength, setAILength] = useState<"short" | "medium" | "long">("medium");
   const [urlImportInput, setUrlImportInput] = useState("");
-  const [imagePromptResult, setImagePromptResult] = useState<string | null>(null);
+  const [showAIImageGenerator, setShowAIImageGenerator] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [seoKeywordInput, setSeoKeywordInput] = useState("");
 
@@ -391,16 +392,6 @@ export default function EditArticlePage() {
       if (data?.category) setCategory(data.category);
       if (Array.isArray(data?.tags)) setTags(data.tags);
       if (Array.isArray(data?.seoKeywords)) setSeoKeywords(data.seoKeywords);
-    } catch {}
-  };
-
-  const handleImagePrompt = async () => {
-    try {
-      const data = await callAI("generate_image_prompt", {
-        title: title || "Untitled",
-        content: content.slice(0, 2000),
-      });
-      setImagePromptResult(data?.prompt ?? null);
     } catch {}
   };
 
@@ -851,12 +842,11 @@ export default function EditArticlePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleImagePrompt}
-                    disabled={isGenerating}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-purple-500/50 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-all duration-200 disabled:opacity-50"
+                    onClick={() => setShowAIImageGenerator(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500/90 to-red-500/90 hover:from-purple-500 hover:to-red-500 text-white font-medium transition-all duration-200"
                   >
                     <Sparkles className="w-4 h-4" />
-                    AI Suggest
+                    AI Generate
                   </button>
                   {coverImage && (
                     <button
@@ -869,19 +859,6 @@ export default function EditArticlePage() {
                     </button>
                   )}
                 </div>
-                {imagePromptResult && (
-                  <div className="mt-2 p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300">
-                    <p className="font-medium text-slate-200 mb-1">Suggested image prompt</p>
-                    <p className="whitespace-pre-wrap">{imagePromptResult}</p>
-                    <button
-                      type="button"
-                      onClick={() => setImagePromptResult(null)}
-                      className="mt-2 text-slate-500 hover:text-white text-xs"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1416,6 +1393,17 @@ export default function EditArticlePage() {
             </div>
           </div>
         )}
+
+        <AIImageGenerator
+          isOpen={showAIImageGenerator}
+          onClose={() => setShowAIImageGenerator(false)}
+          onImageSelected={(url) => {
+            setCoverImage(url);
+            setShowAIImageGenerator(false);
+          }}
+          articleTitle={title}
+          articleContent={content}
+        />
 
         {/* Image picker modal */}
         {showImagePicker && (
