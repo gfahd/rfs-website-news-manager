@@ -423,8 +423,8 @@ export default function NewArticlePage() {
     }
   };
 
-  const handleSaveDraft = async (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleSaveDraft = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
     if (!title.trim()) {
       showError("Enter a title to save as draft");
       return;

@@ -24,7 +24,7 @@ export interface EditorToolbarProps {
   model: string;
   modelOptions: AIModelOption[];
   onModelChange: (value: string) => void;
-  onSaveDraft: () => void;
+  onSaveDraft: (e?: React.MouseEvent) => void | Promise<void>;
   saving: boolean;
   saveSuccess?: boolean;
 }
