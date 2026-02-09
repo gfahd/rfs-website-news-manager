@@ -453,7 +453,7 @@ export default function EditArticlePage() {
   };
 
   const handleSaveDraft = async (e?: React.MouseEvent) => {
-    e.preventDefault();
+    e?.preventDefault();
     setSaving(true);
     setSaveSuccess(false);
     try {
