@@ -96,7 +96,7 @@ export async function POST(request: Request) {
           generatedImageBase64 =
             typeof raw === "string"
               ? raw
-              : Buffer.from(raw as ArrayBuffer | Uint8Array).toString("base64");
+              : Buffer.from(new Uint8Array(raw as ArrayBuffer)).toString("base64");
           generatedMimeType = part.inlineData?.mimeType || "image/png";
         }
       }
