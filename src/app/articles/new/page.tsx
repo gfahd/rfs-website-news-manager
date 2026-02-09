@@ -22,6 +22,9 @@ import {
   X,
   Wand2,
   Loader2,
+  TrendingUp,
+  RefreshCw,
+  Flame,
 } from "lucide-react";
 import { getStoredGeminiModel, type AIModelOption } from "@/lib/settings-client";
 
@@ -109,11 +112,42 @@ export default function NewArticlePage() {
   const [tagInput, setTagInput] = useState("");
   const [seoKeywordInput, setSeoKeywordInput] = useState("");
 
+  // Discover Trending Topics
+  type TrendingTopic = { title: string; description: string; why_trending: string; category: string; interest: string };
+  const [showDiscoverTopics, setShowDiscoverTopics] = useState(false);
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
+  const [trendingTopicsLoading, setTrendingTopicsLoading] = useState(false);
+  const [trendingFocus, setTrendingFocus] = useState<string>("");
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/");
     }
   }, [status, router]);
+
+  async function fetchTrendingTopics() {
+    setTrendingTopicsLoading(true);
+    try {
+      const focusPayload = trendingFocus && trendingFocus !== "All" ? { focus: trendingFocus } : {};
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "discover_topics", model, payload: focusPayload }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch topics");
+      setTrendingTopics(Array.isArray(data?.topics) ? data.topics : []);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Failed to fetch topics");
+      setTrendingTopics([]);
+    } finally {
+      setTrendingTopicsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (showDiscoverTopics) fetchTrendingTopics();
+  }, [showDiscoverTopics, trendingFocus]);
 
   useEffect(() => {
     async function fetchImages() {
@@ -247,6 +281,32 @@ export default function NewArticlePage() {
       const data = await callAI("improve_text", { text: content, instruction });
       if (data?.text) setContent(data.text);
     } catch {}
+  };
+
+  const handleWriteFromTopic = async (topic: TrendingTopic) => {
+    setShowDiscoverTopics(false);
+    try {
+      const data = await callAI("generate_from_topic", {
+        title: topic.title,
+        description: topic.description,
+        category: topic.category,
+      });
+      if (data?.content) {
+        setContent(data.content);
+        try {
+          const meta = await callAI("generate_metadata", { content: data.content });
+          if (meta?.title) setTitle(meta.title);
+          if (meta?.excerpt) setExcerpt(meta.excerpt);
+          if (meta?.category) setCategory(meta.category);
+          if (Array.isArray(meta?.tags)) setTags(meta.tags);
+          if (Array.isArray(meta?.seoKeywords)) setSeoKeywords(meta.seoKeywords);
+        } catch {
+          // optional
+        }
+      }
+    } catch {
+      // error already shown
+    }
   };
 
   const handleAIFormat = async () => {
@@ -459,6 +519,14 @@ export default function NewArticlePage() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowDiscoverTopics(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Discover Topics
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowURLImport(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
               >
@@ -564,6 +632,12 @@ export default function NewArticlePage() {
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Article Content (Markdown)
                 </label>
+                {isGenerating && generatingAction === "generate_from_topic" && (
+                  <div className="flex items-center gap-2 mb-2 py-2 px-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    AI is writing your article...
+                  </div>
+                )}
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
@@ -997,6 +1071,126 @@ export default function NewArticlePage() {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Discover Trending Topics modal */}
+        {showDiscoverTopics && (
+          <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 transition-all duration-200"
+            onClick={() => !trendingTopicsLoading && setShowDiscoverTopics(false)}
+          >
+            <div
+              className="bg-slate-900 rounded-2xl border border-slate-700 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-slate-700">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-red-400" />
+                  Discover Trending Topics
+                </h3>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {(["All", "Residential", "Commercial", "Cybersecurity", "Industry"] as const).map((label) => {
+                    const value = label === "All" ? "" : label.toLowerCase();
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setTrendingFocus(value)}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-all duration-200 ${
+                          trendingFocus === value
+                            ? "bg-red-500 text-white"
+                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {trendingTopicsLoading ? (
+                  <>
+                    <p className="flex items-center gap-2 text-slate-400 mb-4">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Scanning for trending topics...
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <div
+                          key={i}
+                          className="bg-slate-800 rounded-xl p-5 border border-slate-700 animate-pulse"
+                        >
+                          <div className="h-5 bg-slate-700 rounded w-3/4 mb-3" />
+                          <div className="h-3 bg-slate-700 rounded w-full mb-2" />
+                          <div className="h-3 bg-slate-700 rounded w-2/3 mb-4" />
+                          <div className="h-6 bg-slate-700 rounded w-1/3" />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {trendingTopics.map((topic, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-red-500/50 transition-all duration-200 flex flex-col"
+                      >
+                        <h4 className="font-semibold text-white text-base">{topic.title}</h4>
+                        <p className="text-sm text-slate-400 mt-1">{topic.description}</p>
+                        <p className="text-xs text-slate-500 italic mt-2 flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 shrink-0" />
+                          {topic.why_trending}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-3 mb-4">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-600 text-slate-200">
+                            {topic.category}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs ${
+                              topic.interest === "high"
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : topic.interest === "medium"
+                                  ? "bg-amber-500/20 text-amber-400"
+                                  : "bg-slate-600 text-slate-400"
+                            }`}
+                          >
+                            {topic.interest}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleWriteFromTopic(topic)}
+                          disabled={isGenerating}
+                          className="mt-auto w-full py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-all duration-200 disabled:opacity-50"
+                        >
+                          Write This Article
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="p-6 border-t border-slate-700 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={fetchTrendingTopics}
+                  disabled={trendingTopicsLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${trendingTopicsLoading ? "animate-spin" : ""}`} />
+                  Refresh Topics
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDiscoverTopics(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all duration-200"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

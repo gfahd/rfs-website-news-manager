@@ -43,6 +43,8 @@ const VALID_ACTIONS = [
   "generate_metadata",
   "extract_from_url",
   "generate_image_prompt",
+  "discover_topics",
+  "generate_from_topic",
 ] as const;
 
 type Action = (typeof VALID_ACTIONS)[number];
@@ -57,6 +59,12 @@ const GENERATE_METADATA_SYSTEM = `Analyze this article and generate metadata. Re
 const EXTRACT_FROM_URL_SYSTEM = `You are given content from a URL. Generate a completely original, SEO-optimized article inspired by the topic. The article should be relevant to Red Flag Security (alarm systems, CCTV, access control, monitoring). Do NOT copy any content — write fresh content. Use proper markdown formatting with ## headings, **bold**, bullet points where appropriate. Include 800-1200 words. Also generate metadata. Respond in valid JSON only, no markdown fences: { "content": "the full article in markdown", "title": "SEO title", "excerpt": "summary under 160 chars", "category": "one of: threat-intel, technology, company-news, guides, security-tips, industry-trends", "tags": ["array of 5 tags"], "seoKeywords": ["array of 3 keywords"] }`;
 
 const GENERATE_IMAGE_PROMPT_SYSTEM = `Based on this article title and content, generate a detailed image description for a professional blog cover image. The image should be modern, professional, and related to security/technology. Describe the scene, colors, style, and mood. Keep it under 100 words. Return only the description, nothing else.`;
+
+const DISCOVER_TOPICS_SYSTEM = (companyName: string) =>
+  `You are a content strategist for ${companyName}. Generate 6 trending article ideas in the physical security and home/business security industry. Focus on topics relevant to alarm systems, CCTV, access control, and monitoring services. For each idea provide: title, one-sentence description, why it's trending now, suggested category (from the standard categories), and reader interest level (high/medium/low). If a focus area is given, prioritize that. Respond in valid JSON only, no markdown fences: { "topics": [{ "title": "...", "description": "...", "why_trending": "...", "category": "...", "interest": "high" }] }`;
+
+const GENERATE_FROM_TOPIC_SYSTEM = (title: string, description: string, category: string) =>
+  `Write a complete blog article with this exact title: '${title}'. Cover this: ${description}. Category: ${category}. Use proper markdown with ## headings, **bold**, clear sections. Write 800-1200 words. Include introduction, multiple sections, and a conclusion with call to action.`;
 
 async function fetchUrlContent(url: string): Promise<string> {
   const res = await fetch(url, {
@@ -260,6 +268,62 @@ export async function POST(request: Request) {
       const result = await geminiModel.generateContent(userPrompt);
       const prompt = result.response.text();
       return NextResponse.json({ prompt });
+    }
+
+    if (action === "discover_topics") {
+      const { focus } = (payload || {}) as { focus?: string };
+      const systemInstruction =
+        systemPrefix +
+        DISCOVER_TOPICS_SYSTEM(settings.company_name) +
+        (focus && ["residential", "commercial", "cybersecurity", "industry"].includes(focus)
+          ? ` Focus area: ${focus}.`
+          : "");
+      const geminiModel = genAI.getGenerativeModel({
+        model: modelId,
+        systemInstruction,
+      });
+      const userPrompt = focus
+        ? `Generate 6 trending article ideas. Focus area: ${focus}.`
+        : "Generate 6 trending article ideas.";
+      const result = await geminiModel.generateContent(userPrompt);
+      const raw = result.response.text().trim();
+      let json: { topics?: Array<{ title?: string; description?: string; why_trending?: string; category?: string; interest?: string }> };
+      try {
+        json = JSON.parse(raw.replace(/^```\w*\n?|\n?```$/g, "").trim());
+      } catch {
+        return NextResponse.json(
+          { error: "Model did not return valid JSON", raw },
+          { status: 502 }
+        );
+      }
+      const topics = Array.isArray(json?.topics) ? json.topics : [];
+      return NextResponse.json({ topics });
+    }
+
+    if (action === "generate_from_topic") {
+      const { title: topicTitle, description, category: topicCategory } = (payload || {}) as {
+        title?: string;
+        description?: string;
+        category?: string;
+      };
+      if (!topicTitle || typeof topicTitle !== "string") {
+        return NextResponse.json(
+          { error: "Payload must include title" },
+          { status: 400 }
+        );
+      }
+      const effectiveDesc = typeof description === "string" ? description : "";
+      const effectiveCat = typeof topicCategory === "string" ? topicCategory : "technology";
+      const systemInstruction =
+        systemPrefix + GENERATE_FROM_TOPIC_SYSTEM(topicTitle, effectiveDesc, effectiveCat);
+      const geminiModel = genAI.getGenerativeModel({
+        model: modelId,
+        systemInstruction,
+      });
+      const userPrompt = `Write the article now.`;
+      const result = await geminiModel.generateContent(userPrompt);
+      const content = result.response.text();
+      return NextResponse.json({ content });
     }
   } catch (err: unknown) {
     const message =
