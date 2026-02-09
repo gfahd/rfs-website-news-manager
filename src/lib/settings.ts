@@ -28,12 +28,46 @@ const DEFAULT_SETTINGS: AppSettings = {
   categories: [],
 };
 
+function parseAiModelsRaw(raw: unknown): unknown[] {
+  if (Array.isArray(raw) && raw.length > 0) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** DB stores ai_models as string[] (model ids only). We normalize to { value, label } for the app. */
 function normalizeAiModels(raw: unknown): AIModelOption[] {
-  if (!Array.isArray(raw) || raw.length === 0) return [...DEFAULT_AI_MODELS];
-  return raw
-    .filter((x): x is { value?: string; label?: string } => x != null && typeof x === "object")
-    .map((x) => ({ value: String(x.value ?? "").trim(), label: String(x.label ?? x.value ?? "").trim() }))
-    .filter((x) => x.value.length > 0 && x.label.length > 0);
+  const arr = parseAiModelsRaw(raw);
+  if (arr.length === 0) return [...DEFAULT_AI_MODELS];
+  const result: AIModelOption[] = [];
+  for (const x of arr) {
+    if (typeof x === "string" && x.trim()) {
+      try {
+        const parsed = JSON.parse(x) as { value?: string; label?: string };
+        if (parsed != null && typeof parsed === "object" && String(parsed.value ?? "").trim()) {
+          result.push({
+            value: String(parsed.value ?? "").trim(),
+            label: String(parsed.label ?? parsed.value ?? "").trim(),
+          });
+          continue;
+        }
+      } catch {
+        /* fall through: treat as plain model id */
+      }
+      result.push({ value: x.trim(), label: x.trim() });
+    } else if (x != null && typeof x === "object") {
+      const obj = x as { value?: string; label?: string };
+      const value = String(obj.value ?? "").trim();
+      if (value) result.push({ value, label: String(obj.label ?? obj.value ?? "").trim() || value });
+    }
+  }
+  return result.length > 0 ? result : [...DEFAULT_AI_MODELS];
 }
 
 function normalizeRow(row: Record<string, unknown> | null): AppSettings {
@@ -86,6 +120,11 @@ export async function getSettings(): Promise<AppSettings> {
 export async function updateSettings(updates: Partial<Omit<AppSettings, "id">>): Promise<AppSettings> {
   const payload: Record<string, unknown> = { id: "global", ...updates };
   if (Object.keys(payload).length === 1) return getSettings();
+
+  // Persist ai_models as string[] (model ids only) in the DB
+  if (Array.isArray(payload.ai_models)) {
+    payload.ai_models = (payload.ai_models as AIModelOption[]).map((m) => (typeof m === "object" && m && "value" in m ? m.value : String(m))).filter(Boolean);
+  }
 
   const { data, error } = await supabaseAdmin
     .from("settings")

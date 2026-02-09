@@ -29,7 +29,7 @@ import {
   PenSquare,
   Monitor,
 } from "lucide-react";
-import { getStoredGeminiModel, type AIModelOption } from "@/lib/settings-client";
+import { getStoredGeminiModel, getAiModelsCache, type AIModelOption } from "@/lib/settings-client";
 import { ArticlePreview } from "@/components/articles/ArticlePreview";
 
 const FALLBACK_MODEL_OPTIONS: AIModelOption[] = [
@@ -90,9 +90,19 @@ export default function EditArticlePage() {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
-        const list = data.settings?.ai_models;
-        if (Array.isArray(list) && list.length > 0) {
-          setModelOptions(list.filter((m: { value?: string; label?: string }) => m?.value && m?.label));
+        let list = Array.isArray(data.settings?.ai_models) ? data.settings.ai_models.filter((m: { value?: string; label?: string }) => m?.value && m?.label) : [];
+        if (list.length <= 2) {
+          const cache = getAiModelsCache();
+          if (cache && cache.ai_models.length > list.length) {
+            list = cache.ai_models;
+            const defaultId = cache.default_model && list.some((m: { value: string }) => m.value === cache.default_model) ? cache.default_model : list[0]?.value;
+            setModelOptions(list);
+            if (defaultId) setModel(defaultId);
+            return;
+          }
+        }
+        if (list.length > 0) {
+          setModelOptions(list);
           const defaultId = data.settings?.default_model;
           if (defaultId && list.some((m: { value: string }) => m.value === defaultId)) setModel(defaultId);
           else if (!list.some((m: { value: string }) => m.value === model)) setModel(list[0].value);

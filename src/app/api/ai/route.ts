@@ -114,12 +114,16 @@ export async function POST(request: Request) {
 
   const settings = await getSettings();
   const allowedValues = settings.ai_models.map((m) => m.value).filter(Boolean);
+  const isValidGeminiId = (id: unknown): id is string =>
+    typeof id === "string" && id.startsWith("gemini-") && id.length > 8 && id.length < 80;
   const modelId =
     typeof model === "string" && allowedValues.includes(model)
       ? model
-      : allowedValues.includes(settings.default_model)
-        ? settings.default_model
-        : allowedValues[0] ?? "gemini-2.5-flash";
+      : isValidGeminiId(model)
+        ? model
+        : allowedValues.includes(settings.default_model)
+          ? settings.default_model
+          : allowedValues[0] ?? "gemini-2.5-flash";
   const systemPrefix = buildSystemPromptPrefix(settings);
 
   try {

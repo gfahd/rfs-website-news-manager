@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Settings as SettingsIcon, X, AlertTriangle } from "lucide-react";
-import type { AppSettings, AIModelOption } from "@/lib/settings-client";
+import { getAiModelsCache, setAiModelsCache, type AppSettings, type AIModelOption } from "@/lib/settings-client";
 
 const TONE_OPTIONS = [
   "Professional",
@@ -48,6 +48,84 @@ const DEFAULT_SETTINGS: Omit<AppSettings, "id"> = {
   seo_default_keywords: [],
   categories: [],
 };
+
+function settingsToForm(s: AppSettings | undefined): Omit<AppSettings, "id"> | null {
+  if (!s) return null;
+  let aiModels = DEFAULT_AI_MODELS;
+  // API returns ai_models already normalized; support raw array of strings (value-only) from DB
+  const aiModelsRaw = (s as { ai_models?: unknown }).ai_models;
+  if (Array.isArray(aiModelsRaw) && aiModelsRaw.length > 0) {
+    const list = aiModelsRaw.map((m: unknown) => {
+      if (typeof m === "string" && m.trim()) {
+        try {
+          const parsed = JSON.parse(m) as { value?: string; label?: string };
+          if (parsed != null && typeof parsed === "object" && String(parsed.value ?? "").trim()) {
+            return { value: String(parsed.value ?? "").trim(), label: String(parsed.label ?? parsed.value ?? "").trim() };
+          }
+        } catch {
+          /* plain model id */
+        }
+        return { value: m.trim(), label: m.trim() };
+      }
+      const obj = m as { value?: string; label?: string };
+      const value = String(obj?.value ?? "").trim();
+      return { value, label: String(obj?.label ?? obj?.value ?? "").trim() || value };
+    }).filter((m) => m.value && m.label);
+    if (list.length > 0) aiModels = list as typeof DEFAULT_AI_MODELS;
+  } else if (typeof aiModelsRaw === "string" && aiModelsRaw.trim()) {
+    try {
+      const parsed = JSON.parse(aiModelsRaw) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const list = parsed.map((m: unknown) => {
+          if (typeof m === "string" && m.trim()) {
+            try {
+              const parsedItem = JSON.parse(m) as { value?: string; label?: string };
+              if (parsedItem != null && typeof parsedItem === "object" && String(parsedItem.value ?? "").trim()) {
+                return { value: String(parsedItem.value ?? "").trim(), label: String(parsedItem.label ?? parsedItem.value ?? "").trim() };
+              }
+            } catch {
+              /* plain model id */
+            }
+            return { value: (m as string).trim(), label: (m as string).trim() };
+          }
+          const obj = m as { value?: string; label?: string };
+          const value = String(obj?.value ?? "").trim();
+          return { value, label: String(obj?.label ?? obj?.value ?? "").trim() || value };
+        }).filter((m) => m.value && m.label);
+        if (list.length > 0) aiModels = list as typeof DEFAULT_AI_MODELS;
+      }
+    } catch {
+      /* keep default */
+    }
+  }
+  const defaultModel = s.default_model ?? DEFAULT_SETTINGS.default_model;
+  return {
+    company_name: s.company_name ?? DEFAULT_SETTINGS.company_name,
+    company_description: s.company_description ?? DEFAULT_SETTINGS.company_description,
+    website_url: s.website_url ?? DEFAULT_SETTINGS.website_url,
+    default_author: s.default_author ?? DEFAULT_SETTINGS.default_author,
+    default_tone: s.default_tone ?? DEFAULT_SETTINGS.default_tone,
+    default_article_length: s.default_article_length ?? DEFAULT_SETTINGS.default_article_length,
+    default_model: defaultModel,
+    ai_models: aiModels,
+    ai_instructions: s.ai_instructions ?? "",
+    ai_forbidden_topics: s.ai_forbidden_topics ?? "",
+    ai_forbidden_companies: s.ai_forbidden_companies ?? "",
+    ai_link_policy: s.ai_link_policy ?? "internal_only",
+    seo_default_keywords: Array.isArray(s.seo_default_keywords) ? s.seo_default_keywords : [],
+    categories: Array.isArray(s.categories) ? s.categories : [],
+  };
+}
+
+function mergeWithAiModelsCache(next: Omit<AppSettings, "id">): Omit<AppSettings, "id"> {
+  const cache = getAiModelsCache();
+  if (!cache || cache.ai_models.length === 0) return next;
+  if (next.ai_models.length <= 2 && cache.ai_models.length > next.ai_models.length) {
+    const defaultModel = cache.default_model && cache.ai_models.some((m) => m.value === cache.default_model) ? cache.default_model : cache.ai_models[0].value;
+    return { ...next, ai_models: cache.ai_models, default_model: defaultModel };
+  }
+  return next;
+}
 
 function TagInput({
   values,
@@ -129,28 +207,9 @@ export default function SettingsPage() {
       const data = await res.json();
       if (!res.ok) return;
       const s = data.settings as AppSettings;
-      if (s) {
-        const next = {
-          company_name: s.company_name ?? DEFAULT_SETTINGS.company_name,
-          company_description: s.company_description ?? DEFAULT_SETTINGS.company_description,
-          website_url: s.website_url ?? DEFAULT_SETTINGS.website_url,
-          default_author: s.default_author ?? DEFAULT_SETTINGS.default_author,
-          default_tone: s.default_tone ?? DEFAULT_SETTINGS.default_tone,
-          default_article_length: s.default_article_length ?? DEFAULT_SETTINGS.default_article_length,
-          default_model: s.default_model ?? DEFAULT_SETTINGS.default_model,
-          ai_models: Array.isArray(s.ai_models) && s.ai_models.length > 0
-            ? s.ai_models.map((m: { value?: string; label?: string }) => ({
-                value: String(m?.value ?? "").trim(),
-                label: String(m?.label ?? m?.value ?? "").trim(),
-              })).filter((m) => m.value && m.label)
-            : DEFAULT_AI_MODELS,
-          ai_instructions: s.ai_instructions ?? "",
-          ai_forbidden_topics: s.ai_forbidden_topics ?? "",
-          ai_forbidden_companies: s.ai_forbidden_companies ?? "",
-          ai_link_policy: s.ai_link_policy ?? "internal_only",
-          seo_default_keywords: Array.isArray(s.seo_default_keywords) ? s.seo_default_keywords : [],
-          categories: Array.isArray(s.categories) ? s.categories : [],
-        };
+      let next = settingsToForm(s);
+      if (next) {
+        next = mergeWithAiModelsCache(next);
         setForm(next);
         setInitial(next);
       }
@@ -186,7 +245,19 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
-      setInitial(form);
+      setAiModelsCache(form.ai_models, form.default_model);
+      const saved = data.settings as AppSettings | undefined;
+      let next = settingsToForm(saved);
+      if (next) {
+        next = mergeWithAiModelsCache(next);
+        if (next.ai_models.length <= 2 && form.ai_models.length > 2) {
+          next = { ...next, ai_models: form.ai_models, default_model: form.default_model };
+        }
+        setForm(next);
+        setInitial(next);
+      } else {
+        setInitial(form);
+      }
       setToast({ message: "Settings saved." });
       setTimeout(() => setToast(null), 3000);
     } catch (e) {
