@@ -25,8 +25,11 @@ import {
   TrendingUp,
   RefreshCw,
   Flame,
+  PenSquare,
+  Monitor,
 } from "lucide-react";
 import { getStoredGeminiModel, type AIModelOption } from "@/lib/settings-client";
+import { ArticlePreview } from "@/components/articles/ArticlePreview";
 
 const FALLBACK_MODEL_OPTIONS: AIModelOption[] = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -99,6 +102,7 @@ export default function NewArticlePage() {
   const [showAIGenerate, setShowAIGenerate] = useState(false);
   const [showURLImport, setShowURLImport] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
   const [images, setImages] = useState<{ name: string; path: string; url?: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
@@ -533,13 +537,32 @@ export default function NewArticlePage() {
                 <LinkIcon className="w-4 h-4" />
                 Import from URL
               </button>
-              <button
-                type="button"
-                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
-              >
-                <Eye className="w-4 h-4" />
-                Preview
-              </button>
+              <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("edit")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-all duration-200 ${
+                    viewMode === "edit"
+                      ? "bg-slate-700 text-white"
+                      : "bg-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <PenSquare className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("preview")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-all duration-200 ${
+                    viewMode === "preview"
+                      ? "bg-slate-700 text-white"
+                      : "bg-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Eye className="w-4 h-4" />
+                  Preview
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={handleSaveDraft}
@@ -627,49 +650,73 @@ export default function NewArticlePage() {
                 </div>
               </div>
 
-              {/* Content editor */}
+              {/* Content editor / Preview */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Article Content (Markdown)
-                </label>
-                {isGenerating && generatingAction === "generate_from_topic" && (
+                {viewMode === "edit" ? (
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Article Content (Markdown)
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
+                    <Monitor className="w-3.5 h-3.5" />
+                    Website Preview
+                  </div>
+                )}
+                {isGenerating && generatingAction === "generate_from_topic" && viewMode === "edit" && (
                   <div className="flex items-center gap-2 mb-2 py-2 px-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     AI is writing your article...
                   </div>
                 )}
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Write or paste content here. Use ## for headings, **bold**, etc."
-                  required
-                  className="w-full min-h-[500px] px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-red-500 text-slate-100 placeholder:text-slate-500 font-mono text-sm resize-y transition-all duration-200"
-                />
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleAIImprove}
-                      disabled={!content.trim() || isGenerating}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-500/50 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-all duration-200 disabled:opacity-50 text-sm"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      AI Improve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAIFormat}
-                      disabled={!content.trim() || isGenerating}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition-all duration-200 disabled:opacity-50 text-sm"
-                    >
-                      <Wand2 className="w-3.5 h-3.5" />
-                      AI Format
-                    </button>
+                {viewMode === "preview" ? (
+                  <div className="min-h-[500px] rounded-lg overflow-auto bg-slate-800/50 border border-slate-700 p-4">
+                    <ArticlePreview
+                      title={title}
+                      excerpt={excerpt}
+                      content={content}
+                      coverImage={coverImage}
+                      category={category}
+                      tags={tags}
+                      author="Red Flag Security Team"
+                      publishedAt={publishedAt}
+                    />
                   </div>
-                  <span className="text-slate-500 text-sm font-mono">
-                    {charCount} chars · {wordCount} words
-                  </span>
-                </div>
+                ) : (
+                  <>
+                    <textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="Write or paste content here. Use ## for headings, **bold**, etc."
+                      required
+                      className="w-full min-h-[500px] px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-red-500 text-slate-100 placeholder:text-slate-500 font-mono text-sm resize-y transition-all duration-200"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAIImprove}
+                          disabled={!content.trim() || isGenerating}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-500/50 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-all duration-200 disabled:opacity-50 text-sm"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          AI Improve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAIFormat}
+                          disabled={!content.trim() || isGenerating}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition-all duration-200 disabled:opacity-50 text-sm"
+                        >
+                          <Wand2 className="w-3.5 h-3.5" />
+                          AI Format
+                        </button>
+                      </div>
+                      <span className="text-slate-500 text-sm font-mono">
+                        {charCount} chars · {wordCount} words
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Cover image */}
