@@ -7,23 +7,28 @@ This document provides a technical overview of the Red Flag News Admin applicati
 
 *   **Role**: Admin Interface.
 *   **Target**: Manages content consumed by the public site.
-*   **Database**: **Supabase** — PostgreSQL for articles, Supabase Storage for images. GitHub is no longer used as content storage.
+*   **Database**: **Supabase** — PostgreSQL for articles and app settings, Supabase Storage for images. GitHub is no longer used as content storage.
 
 ## 2. Technology Stack
 *   **Framework**: Next.js 16 (App Router)
 *   **Language**: TypeScript
 *   **Styling**: Tailwind CSS 4
 *   **Authentication**: NextAuth.js (Google OAuth, restricted to specific email domains)
-*   **Data Layer**: **Supabase** (via `@supabase/supabase-js`) — articles in PostgreSQL, images in Storage
+*   **Data Layer**: **Supabase** (via `@supabase/supabase-js`) — articles and settings in PostgreSQL, images in Storage
 *   **State Management**: Server Actions / API Routes
 
 ## 3. Data Storage & Structure
-Content lives in **Supabase**, not in a GitHub repository.
+Content and app configuration live in **Supabase**, not in a GitHub repository.
 
 ### Articles
 *   **Location**: Supabase PostgreSQL table `articles`.
 *   **Structure**: Row per article with columns such as `id`, `slug`, `title`, `excerpt`, `content`, `category`, `published_at`, `cover_image`, `tags`, `seo_keywords`, `author`, `featured`, `status` (`published` | `draft`), `created_at`, `updated_at`.
 *   **Logic**: Handled in `src/lib/supabase.ts` — `getArticles`, `getArticle`, `createArticle`, `updateArticle`, `deleteArticle`, `articleToFrontend` (maps snake_case to camelCase for the frontend).
+
+### Settings
+*   **Location**: Supabase PostgreSQL table `settings`, single row with `id = "global"`.
+*   **Structure**: `AppSettings` includes company info (`company_name`, `company_description`, `website_url`, `default_author`), AI defaults (`default_model`, `default_tone`, `default_article_length`, `ai_models` as array of `{ value, label }`), AI instructions and constraints (`ai_instructions`, `ai_forbidden_topics`, `ai_forbidden_companies`), `ai_link_policy` (`internal_only` | `no_links` | `allow_all`), and content organization (`seo_default_keywords`, `categories`).
+*   **Logic**: `src/lib/settings.ts` (server) — `getSettings()`, `updateSettings(updates)`; upsert by `id`. Types and client-safe helpers in `src/lib/settings-client.ts` (no Supabase import). API: `GET /api/settings` and `PUT /api/settings` (auth required).
 
 ### Images
 *   **Location**: Supabase Storage bucket `news-images`.
@@ -40,16 +45,28 @@ Content lives in **Supabase**, not in a GitHub repository.
     *   User creates/edits an article (and optionally uploads images).
     *   Admin App writes to **Supabase** (articles table and/or Storage).
 
-2.  **Visibility on the public site**:
+2.  **Settings**:
+    *   Admin configures company info, AI defaults (including addable AI models and default model), AI instructions/forbidden topics/companies, link policy, and categories/SEO keywords on the **Settings** page. Stored in the `settings` table and injected into all AI prompts.
+
+3.  **Visibility on the public site**:
     *   If the **public website** reads articles and images from the **same Supabase project**, it can show new/updated content as soon as it refetches (e.g. on demand or on next build).
     *   If the public site is static and needs a rebuild to pull from Supabase, a **rebuild trigger** is sent via GitHub repo dispatch (`triggerWebsiteRebuild`). Rebuild/redeploy steps depend on the public site’s setup (e.g. see DEPLOYMENT.md if applicable).
 
-3.  **Success message**: After publish/update, the articles list shows a banner: “Article saved to the database” and notes that the live site may update automatically or after a rebuild depending on setup.
+4.  **Success message**: After publish/update, the articles list shows a banner: “Article saved to the database” and notes that the live site may update automatically or after a rebuild depending on setup.
 
-## 5. Key Environment Variables
+## 5. AI & Settings Integration
+*   **`/api/ai`** (POST): Uses `getSettings()` to build a **system prompt prefix** (company name/description, website URL, IMPORTANT INSTRUCTIONS, forbidden competitors/topics, link policy). This prefix is prepended to every AI action (generate_article, improve_text, generate_metadata, extract_from_url, generate_image_prompt). Default tone and article length come from settings when the request does not specify them.
+*   **Allowed models**: Resolved from `settings.ai_models`; request `model` must be in that list or fallback to `default_model` / first entry. Model IDs are flexible (e.g. any `gemini-*`-style ID can be added in Settings).
+*   **Settings page**: Single “Add model” field (model ID string); adding pushes to `ai_models` (value and label both set to the ID) and sets it as default. Default model dropdown is populated from `ai_models`. No separate display-name field; models are not listed in full on the page, only in the dropdown.
+
+## 6. UX: Preserving Input When Switching Windows
+*   **Session**: `SessionProvider` uses `refetchOnWindowFocus={false}` so that returning to the tab does not refetch the session and trigger data-load effects that overwrite form state.
+*   **Data load once per visit**: Settings, article edit, new article, dashboard, articles list, and media pages use a “loaded once” ref so that initial data fetch (settings, article, images, articles list) runs only once when the session is ready. Switching to another window and back no longer causes a refetch that wipes typed content.
+
+## 7. Key Environment Variables
 Stored in `.env.local`:
 
-*   **Supabase (required for content)**  
+*   **Supabase (required for content and settings)**  
     *   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`: Server-side access (API routes).  
     *   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: For any client-side Supabase usage (e.g. public read).
 
@@ -63,10 +80,14 @@ Stored in `.env.local`:
 *   **AI (optional)**  
     *   `GEMINI_API_KEY`: For AI features in the admin (e.g. generate article, metadata, improve text).
 
-## 6. Codebase Context
+## 8. Codebase Context
 *   **`src/lib/supabase.ts`**: Main data layer. Supabase clients (`supabaseAdmin`, `supabasePublic`), article CRUD, `articleToFrontend`, image upload/list (`uploadImage`, `getImages`), `triggerWebsiteRebuild`, `generateSlug`.
-*   **`src/lib/github.ts`**: Effectively deprecated for content; kept as a stub. Rebuild trigger lives in `supabase.ts`.
+*   **`src/lib/settings.ts`**: Server-only. Reads/writes Supabase `settings` table (id = global). `getSettings()`, `updateSettings(updates)`, defaults and normalizers. Do not import from client components.
+*   **`src/lib/settings-client.ts`**: Client-safe. `AppSettings`, `AIModelOption`, `GEMINI_MODEL_KEY`, `GEMINI_MODEL_DEFAULT`, `getStoredGeminiModel()`. No Supabase.
+*   **`src/components/layout/auth-provider.tsx`**: Wraps app in `SessionProvider` with `refetchOnWindowFocus={false}`.
+*   **`src/app/api/settings/route.ts`**: GET returns `{ settings }`, PUT accepts partial updates and returns `{ success, settings }`; both require auth.
 *   **`src/app/api/articles/`**, **`src/app/api/articles/[slug]/`**: Use Supabase for list/get/create/update/delete; return data in frontend shape via `articleToFrontend`.
 *   **`src/app/api/images/`**, **`src/app/api/upload/`**: Use Supabase Storage for listing and uploading images.
-*   **`src/app/api/ai/route.ts`**: Unchanged; AI actions (e.g. Gemini) for generate/improve/metadata.
-*   **Auth**: Unchanged; NextAuth with existing config.
+*   **`src/app/api/ai/route.ts`**: Loads settings, builds system prompt prefix, applies default tone/length and allowed models; handles generate_article, improve_text, generate_metadata, extract_from_url, generate_image_prompt.
+*   **`src/app/settings/page.tsx`**: Full settings UI (company, AI defaults including add-model and default model, AI instructions, link policy, categories/SEO, danger zone reset). Loads once per visit via ref to avoid losing input when switching windows.
+*   **Auth**: NextAuth with existing config; session not refetched on window focus.
