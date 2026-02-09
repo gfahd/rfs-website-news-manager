@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { X, Sparkles, Upload, Loader2, Download, Trash2, RefreshCw } from "lucide-react";
+import { useError } from "@/context/ErrorContext";
 
 const ASPECT_RATIOS = [
   { value: "16:9", label: "16:9 (Landscape)" },
@@ -37,7 +38,7 @@ export function AIImageGenerator({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showError } = useError();
 
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatedMimeType, setGeneratedMimeType] = useState<string>("image/png");
@@ -46,13 +47,11 @@ export function AIImageGenerator({
   const clearGenerated = useCallback(() => {
     setGeneratedImage(null);
     setGeneratedMimeType("image/png");
-    setError(null);
   }, []);
 
   const handleAutoSuggest = useCallback(async () => {
     if (!articleTitle && !articleContent) return;
     setIsSuggesting(true);
-    setError(null);
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -69,19 +68,18 @@ export function AIImageGenerator({
       if (!res.ok) throw new Error(data.error || "Failed to suggest prompt");
       setPromptText(data.prompt ?? "");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to suggest prompt");
+      showError("Failed to suggest prompt", e instanceof Error ? e.message : String(e));
     } finally {
       setIsSuggesting(false);
     }
-  }, [articleTitle, articleContent]);
+  }, [articleTitle, articleContent, showError]);
 
   const handleGenerate = useCallback(async () => {
     if (!promptText.trim()) {
-      setError("Enter a prompt to generate an image.");
+      showError("Enter a prompt to generate an image.");
       return;
     }
     setIsGenerating(true);
-    setError(null);
     clearGenerated();
     try {
       const res = await fetch("/api/ai/image", {
@@ -100,26 +98,25 @@ export function AIImageGenerator({
       setGeneratedMimeType(data.mimeType || "image/png");
       setHistory((prev) => [...prev.slice(-7), { image: data.image, mimeType: data.mimeType || "image/png" }]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Image generation failed");
+      showError("Image generation failed", e instanceof Error ? e.message : String(e));
     } finally {
       setIsGenerating(false);
     }
-  }, [promptText, aspectRatio, clearGenerated]);
+  }, [promptText, aspectRatio, clearGenerated, showError]);
 
   const handleEdit = useCallback(async () => {
     if (!uploadedFile || !editInstructions.trim()) {
-      setError("Upload an image and enter edit instructions.");
+      showError("Upload an image and enter edit instructions.");
       return;
     }
     setIsGenerating(true);
-    setError(null);
     clearGenerated();
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
       if (!base64) {
-        setError("Could not read image.");
+        showError("Could not read image.");
         setIsGenerating(false);
         return;
       }
@@ -142,13 +139,13 @@ export function AIImageGenerator({
         setGeneratedMimeType(data.mimeType || "image/png");
         setHistory((prev) => [...prev.slice(-7), { image: data.image, mimeType: data.mimeType || "image/png" }]);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Edit failed");
+        showError("Edit failed", e instanceof Error ? e.message : String(e));
       } finally {
         setIsGenerating(false);
       }
     };
     reader.readAsDataURL(uploadedFile);
-  }, [uploadedFile, editInstructions, aspectRatio, clearGenerated]);
+  }, [uploadedFile, editInstructions, aspectRatio, clearGenerated, showError]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -156,7 +153,6 @@ export function AIImageGenerator({
     if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
     setUploadedFile(file);
     setUploadPreviewUrl(URL.createObjectURL(file));
-    setError(null);
   }, [uploadPreviewUrl]);
 
   const handleDrop = useCallback(
@@ -167,7 +163,6 @@ export function AIImageGenerator({
       if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
       setUploadedFile(file);
       setUploadPreviewUrl(URL.createObjectURL(file));
-      setError(null);
     },
     [uploadPreviewUrl]
   );
@@ -177,7 +172,6 @@ export function AIImageGenerator({
   const handleUseAsCover = useCallback(async () => {
     if (!generatedImage) return;
     setIsSaving(true);
-    setError(null);
     try {
       const saveRes = await fetch("/api/ai/image/save", {
         method: "POST",
@@ -193,11 +187,11 @@ export function AIImageGenerator({
       onImageSelected(saveData.url);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      showError("Save failed", e instanceof Error ? e.message : String(e));
     } finally {
       setIsSaving(false);
     }
-  }, [generatedImage, generatedMimeType, articleTitle, onImageSelected, onClose]);
+  }, [generatedImage, generatedMimeType, articleTitle, onImageSelected, onClose, showError]);
 
   const handleDownload = useCallback(() => {
     if (!generatedImage) return;
@@ -216,7 +210,6 @@ export function AIImageGenerator({
   const handleSelectHistory = useCallback((item: { image: string; mimeType: string }) => {
     setGeneratedImage(item.image);
     setGeneratedMimeType(item.mimeType);
-    setError(null);
   }, []);
 
   if (!isOpen) return null;
@@ -409,10 +402,6 @@ export function AIImageGenerator({
                 )}
               </button>
             </>
-          )}
-
-          {error && (
-            <p className="text-sm text-red-400 bg-red-500/10 rounded-lg p-3">{error}</p>
           )}
 
           {isGenerating && !generatedImage && (

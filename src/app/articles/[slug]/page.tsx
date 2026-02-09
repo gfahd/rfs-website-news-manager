@@ -7,7 +7,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import {
   X,
@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { getStoredGeminiModel, getAiModelsCache, type AIModelOption } from "@/lib/settings-client";
+import { useError } from "@/context/ErrorContext";
 import { ArticlePreview } from "@/components/articles/ArticlePreview";
 import { AIImageGenerator } from "@/components/articles/AIImageGenerator";
 import { EditorToolbar, type ArticleStatus } from "@/components/articles/EditorToolbar";
@@ -109,7 +110,7 @@ export default function EditArticlePage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const { showError } = useError();
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const [aiTopic, setAITopic] = useState("");
@@ -173,7 +174,7 @@ export default function EditArticlePage() {
       try {
         const res = await fetch(`/api/articles/${encodeURIComponent(slug)}`);
         if (!res.ok) {
-          setErrorToast("Article not found");
+          showError("Article not found");
           setLoading(false);
           return;
         }
@@ -197,7 +198,7 @@ export default function EditArticlePage() {
           setArticleDraft(a.draft ?? true);
         }
       } catch {
-        setErrorToast("Failed to load article");
+        showError("Failed to load article");
       } finally {
         setLoading(false);
       }
@@ -221,10 +222,6 @@ export default function EditArticlePage() {
     }
   }, [session]);
 
-  const showError = useCallback((message: string) => {
-    setErrorToast(message);
-    setTimeout(() => setErrorToast(null), 5000);
-  }, []);
 
   async function callAI(action: string, payload: Record<string, unknown>) {
     setIsGenerating(true);
@@ -539,14 +536,6 @@ export default function EditArticlePage() {
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
       <main className="md:ml-64 md:p-8 p-4 pt-16 transition-all duration-200">
-        {errorToast && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 bg-red-500/95 text-white rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200">
-            <span>{errorToast}</span>
-            <button type="button" onClick={() => setErrorToast(null)} className="p-1 hover:bg-red-600 rounded">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
         {successToast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 bg-emerald-500/95 text-white rounded-lg shadow-lg transition-all duration-200">
             {successToast}

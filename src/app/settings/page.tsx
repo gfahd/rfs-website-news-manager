@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { useError } from "@/context/ErrorContext";
 import { Settings as SettingsIcon, X, AlertTriangle } from "lucide-react";
 import { getAiModelsCache, setAiModelsCache, type AppSettings, type AIModelOption } from "@/lib/settings-client";
 
@@ -190,7 +191,8 @@ export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; error?: boolean } | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const { showError } = useError();
   const [showResetModal, setShowResetModal] = useState(false);
   const [initial, setInitial] = useState<Omit<AppSettings, "id"> | null>(null);
   const [form, setForm] = useState<Omit<AppSettings, "id">>(DEFAULT_SETTINGS);
@@ -258,11 +260,11 @@ export default function SettingsPage() {
       } else {
         setInitial(form);
       }
-      setToast({ message: "Settings saved." });
-      setTimeout(() => setToast(null), 3000);
+      setSuccessToast("Settings saved.");
+      setTimeout(() => setSuccessToast(null), 3000);
     } catch (e) {
-      setToast({ message: e instanceof Error ? e.message : "Failed to save", error: true });
-      setTimeout(() => setToast(null), 4000);
+      const msg = e instanceof Error ? e.message : "Failed to save";
+      showError("Failed to save", msg);
     } finally {
       setSaving(false);
     }
@@ -279,11 +281,10 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(DEFAULT_SETTINGS),
       });
-      setToast({ message: "Settings reset to defaults." });
-      setTimeout(() => setToast(null), 3000);
+      setSuccessToast("Settings reset to defaults.");
+      setTimeout(() => setSuccessToast(null), 3000);
     } catch (e) {
-      setToast({ message: "Failed to reset settings.", error: true });
-      setTimeout(() => setToast(null), 4000);
+      showError("Failed to reset settings.");
     } finally {
       setSaving(false);
     }
@@ -320,14 +321,10 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {toast && (
-          <div
-            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 text-white rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 ${
-              toast.error ? "bg-red-500/95" : "bg-emerald-600/95"
-            }`}
-          >
-            <span>{toast.message}</span>
-            <button type="button" onClick={() => setToast(null)} className="p-1 hover:bg-white/20 rounded">
+        {successToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 bg-emerald-600/95 text-white rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200">
+            <span>{successToast}</span>
+            <button type="button" onClick={() => setSuccessToast(null)} className="p-1 hover:bg-white/20 rounded">
               <X className="w-4 h-4" />
             </button>
           </div>
