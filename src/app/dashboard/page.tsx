@@ -119,7 +119,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
 
-      <main className="ml-64 min-h-screen p-8">
+      <main className="md:ml-64 min-h-screen p-4 pt-16 md:p-8">
         {/* Header: welcome left, app name right */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -134,7 +134,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats */}
-        <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => (
             <div
               key={stat.name}

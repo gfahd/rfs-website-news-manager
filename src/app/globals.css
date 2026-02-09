@@ -15,6 +15,7 @@
 body {
   background-color: rgb(var(--background));
   color: rgb(var(--foreground));
+  overflow-x: hidden;
 }
 
 /* Custom scrollbar */

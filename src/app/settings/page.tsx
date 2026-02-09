@@ -229,9 +229,9 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
-      <main className="ml-64 p-6 md:p-8">
+      <main className="md:ml-64 md:p-8 p-4 pt-16">
         {/* Sticky header with title and Save */}
-        <div className="sticky top-0 z-10 -mx-6 md:-mx-8 px-6 md:px-8 py-4 bg-slate-950/95 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="sticky top-14 md:top-0 z-10 -mx-6 md:-mx-8 px-6 md:px-8 py-4 bg-slate-950/95 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 mb-8">
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <SettingsIcon className="w-7 h-7 text-slate-400" />
             Settings
@@ -240,7 +240,7 @@ export default function SettingsPage() {
             type="button"
             onClick={handleSave}
             disabled={saving || !hasChanges}
-            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:pointer-events-none text-white rounded-lg px-6 py-2.5 font-medium transition-colors"
+            className="flex items-center gap-2 min-h-[44px] bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:pointer-events-none text-white rounded-lg px-6 py-2.5 font-medium transition-colors"
           >
             {hasChanges && (
               <span className="w-2 h-2 rounded-full bg-white animate-pulse" title="Unsaved changes" />
@@ -267,7 +267,7 @@ export default function SettingsPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-red-500" />
           </div>
         ) : (
-          <div className="space-y-6 max-w-3xl">
+          <div className="space-y-6 w-full max-w-3xl">
             {/* Section 1 — Company Information */}
             <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
@@ -495,7 +495,7 @@ export default function SettingsPage() {
         {/* Reset confirmation modal */}
         {showResetModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60" onClick={() => setShowResetModal(false)}>
-            <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-w-md w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 mx-4 md:mx-auto max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-semibold text-white mb-2">Reset to defaults?</h3>
               <p className="text-slate-400 text-sm mb-6">
                 All settings will be replaced with default values and saved immediately.
@@ -504,14 +504,14 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowResetModal(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-700 text-slate-200 hover:bg-slate-600"
+                  className="min-h-[44px] px-4 py-2 rounded-lg bg-slate-700 text-slate-200 hover:bg-slate-600"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                  className="min-h-[44px] px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
                 >
                   Reset
                 </button>

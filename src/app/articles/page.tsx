@@ -127,7 +127,7 @@ function ArticlesPageContent() {
   return (
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
-      <main className="ml-64 p-6 md:p-8">
+      <main className="md:ml-64 md:p-8 p-4 pt-16">
         {/* Deploy reminder banner */}
         {showDeployBanner && (
           <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-200">
@@ -168,7 +168,7 @@ function ArticlesPageContent() {
             </div>
             <Link
               href="/articles/new"
-              className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 font-medium transition-colors shrink-0"
+              className="flex items-center justify-center gap-2 min-h-[44px] bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 font-medium transition-colors shrink-0"
             >
               <Plus className="w-5 h-5" />
               New Article
@@ -216,7 +216,7 @@ function ArticlesPageContent() {
             {filteredArticles.map((article) => (
               <article
                 key={article.slug}
-                className="bg-slate-900 rounded-xl p-5 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center gap-4"
+                className="bg-slate-900 rounded-xl p-5 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center gap-4 min-w-0"
               >
                 <div className="flex-1 min-w-0">
                   <Link
@@ -266,7 +266,7 @@ function ArticlesPageContent() {
                     onClick={() =>
                       setDeleteTarget({ slug: article.slug, title: article.title })
                     }
-                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-400 hover:text-red-400 hover:bg-red-600/10 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -285,7 +285,7 @@ function ArticlesPageContent() {
           onClick={() => !deleting && setDeleteTarget(null)}
         >
           <div
-            className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-w-md w-full shadow-xl"
+            className="bg-slate-900 rounded-xl border border-slate-700 p-6 mx-4 md:mx-auto max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white mb-2">
@@ -298,14 +298,14 @@ function ArticlesPageContent() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => !deleting && setDeleteTarget(null)}
-                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDelete(deleteTarget.slug)}
                 disabled={deleting}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>

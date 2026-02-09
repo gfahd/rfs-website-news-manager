@@ -142,7 +142,7 @@ export default function MediaPage() {
   return (
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
-      <main className="ml-64 p-6 md:p-8">
+      <main className="md:ml-64 md:p-8 p-4 pt-16">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <h1 className="text-2xl font-bold text-white">Media Library</h1>

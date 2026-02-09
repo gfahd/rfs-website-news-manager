@@ -465,7 +465,7 @@ export default function NewArticlePage() {
   return (
     <div className="min-h-screen bg-slate-950">
       <Sidebar />
-      <main className="ml-64 p-6 lg:p-8 transition-all duration-200">
+      <main className="md:ml-64 md:p-8 p-4 pt-16 transition-all duration-200">
         {/* Error toast */}
         {errorToast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 bg-red-500/95 text-white rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200">
@@ -486,18 +486,18 @@ export default function NewArticlePage() {
             <div className="flex items-center gap-3">
               <Link
                 href="/articles"
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all duration-200"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all duration-200"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-white">New Article</h1>
+                <h1 className="text-xl md:text-2xl font-bold text-white">New Article</h1>
                 <p className="text-slate-400 text-sm mt-0.5">AI-powered article creation</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {/* Model selector with sparkle */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg min-h-[44px]">
                 <Sparkles className="w-4 h-4 text-slate-400 shrink-0" />
                 <select
                   value={modelOptions.some((o) => o.value === model) ? model : modelOptions[0]?.value ?? model}
@@ -512,7 +512,7 @@ export default function NewArticlePage() {
               <button
                 type="button"
                 onClick={() => setShowAIGenerate(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-medium transition-all duration-200 shadow-lg shadow-red-500/20"
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-medium transition-all duration-200 shadow-lg shadow-red-500/20"
               >
                 <Sparkles className="w-4 h-4" />
                 AI Generate
@@ -520,7 +520,7 @@ export default function NewArticlePage() {
               <button
                 type="button"
                 onClick={() => setShowDiscoverTopics(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
               >
                 <TrendingUp className="w-4 h-4" />
                 Discover Topics
@@ -528,14 +528,14 @@ export default function NewArticlePage() {
               <button
                 type="button"
                 onClick={() => setShowURLImport(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
               >
                 <LinkIcon className="w-4 h-4" />
                 Import from URL
               </button>
               <button
                 type="button"
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
               >
                 <Eye className="w-4 h-4" />
                 Preview
@@ -544,7 +544,7 @@ export default function NewArticlePage() {
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200 disabled:opacity-50"
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] bg-slate-800 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
                 {saving ? "Saving..." : "Save as draft"}
@@ -552,7 +552,7 @@ export default function NewArticlePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-medium transition-all duration-200"
+                className="flex items-center gap-2 text-sm px-3 py-2 md:px-4 md:py-2.5 min-h-[44px] bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-medium transition-all duration-200"
               >
                 <Send className="w-4 h-4" />
                 {saving ? "Publishing..." : "Publish"}
@@ -560,9 +560,9 @@ export default function NewArticlePage() {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-[65%_35%] gap-8">
+          <div className="flex flex-col lg:flex-row gap-6">
             {/* Left column — Editor */}
-            <div className="space-y-6">
+            <div className="w-full lg:w-[65%] space-y-6">
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Title</label>
@@ -749,7 +749,7 @@ export default function NewArticlePage() {
             </div>
 
             {/* Right column — Settings & AI (sticky) */}
-            <div className="lg:sticky lg:top-6 space-y-6 self-start">
+            <div className="w-full lg:w-[35%] lg:sticky lg:top-6 space-y-6 self-start">
               {/* Settings card */}
               <div className="bg-slate-900 rounded-xl border border-slate-700 p-5 transition-all duration-200">
                 <h3 className="font-semibold text-white mb-4">Settings</h3>
@@ -989,7 +989,7 @@ export default function NewArticlePage() {
             onClick={() => !isGenerating && setShowAIGenerate(false)}
           >
             <div
-              className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full p-6 shadow-xl"
+              className="bg-slate-900 rounded-xl border border-slate-700 mx-4 md:mx-auto max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -1057,7 +1057,7 @@ export default function NewArticlePage() {
                     <button
                       type="button"
                       onClick={() => setShowAIGenerate(false)}
-                      className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200"
+                      className="flex-1 min-h-[44px] px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200"
                     >
                       Cancel
                     </button>
@@ -1065,7 +1065,7 @@ export default function NewArticlePage() {
                       type="button"
                       onClick={handleAIGenerateArticle}
                       disabled={!aiTopic.trim()}
-                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
+                      className="flex-1 min-h-[44px] px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
                     >
                       Generate Article
                     </button>
@@ -1083,7 +1083,7 @@ export default function NewArticlePage() {
             onClick={() => !trendingTopicsLoading && setShowDiscoverTopics(false)}
           >
             <div
-              className="bg-slate-900 rounded-2xl border border-slate-700 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
+              className="bg-slate-900 rounded-2xl border border-slate-700 mx-4 md:mx-auto max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6 border-b border-slate-700">
@@ -1179,7 +1179,7 @@ export default function NewArticlePage() {
                   type="button"
                   onClick={fetchTrendingTopics}
                   disabled={trendingTopicsLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
+                  className="min-h-[44px] flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
                 >
                   <RefreshCw className={`w-4 h-4 ${trendingTopicsLoading ? "animate-spin" : ""}`} />
                   Refresh Topics
@@ -1187,7 +1187,7 @@ export default function NewArticlePage() {
                 <button
                   type="button"
                   onClick={() => setShowDiscoverTopics(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all duration-200"
+                  className="min-h-[44px] px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all duration-200"
                 >
                   Close
                 </button>
@@ -1203,7 +1203,7 @@ export default function NewArticlePage() {
             onClick={() => !isGenerating && setShowURLImport(false)}
           >
             <div
-              className="bg-slate-900 rounded-xl border border-slate-700 max-w-lg w-full p-6 shadow-xl"
+              className="bg-slate-900 rounded-xl border border-slate-700 mx-4 md:mx-auto max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -1231,7 +1231,7 @@ export default function NewArticlePage() {
                     <button
                       type="button"
                       onClick={() => setShowURLImport(false)}
-                      className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200"
+                      className="flex-1 min-h-[44px] px-4 py-2.5 bg-slate-800 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 transition-all duration-200"
                     >
                       Cancel
                     </button>
@@ -1239,7 +1239,7 @@ export default function NewArticlePage() {
                       type="button"
                       onClick={handleURLImport}
                       disabled={!urlImportInput.trim()}
-                      className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
+                      className="flex-1 min-h-[44px] px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
                     >
                       Import & Generate
                     </button>
@@ -1257,7 +1257,7 @@ export default function NewArticlePage() {
             onClick={() => setShowImagePicker(false)}
           >
             <div
-              className="bg-slate-900 rounded-xl border border-slate-700 max-w-2xl w-full max-h-[80vh] overflow-hidden"
+              className="bg-slate-900 rounded-xl border border-slate-700 mx-4 md:mx-auto max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-4 border-b border-slate-700">
