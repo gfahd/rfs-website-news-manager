@@ -472,6 +472,9 @@ export default function SettingsPage() {
                     placeholder="e.g., Always spell company name as 'RedFlag Security' (one word). Always mention our 24/7 monitoring."
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg text-white placeholder:text-slate-500 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y"
                   />
+                  <p className="text-xs text-slate-500 mt-1.5">
+                    These instructions apply to ALL AI features: article generation, topic discovery, text improvement, metadata generation, and image prompts.
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-300 mb-1 block">Forbidden Competitors</label>

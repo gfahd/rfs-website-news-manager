@@ -1311,6 +1311,23 @@ export default function EditArticlePage() {
                             {topic.interest}
                           </span>
                         </div>
+                        {topic.source_url && (() => {
+                          try {
+                            const hostname = new URL(topic.source_url).hostname;
+                            return (
+                              <a
+                                href={topic.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-slate-500 hover:text-red-400 underline truncate block mt-2"
+                              >
+                                Source: {hostname}
+                              </a>
+                            );
+                          } catch {
+                            return null;
+                          }
+                        })()}
                         <button
                           type="button"
                           onClick={() => handleWriteFromTopic(topic)}

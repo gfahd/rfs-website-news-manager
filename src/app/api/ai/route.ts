@@ -60,11 +60,52 @@ const EXTRACT_FROM_URL_SYSTEM = `You are given content from a URL. Generate a co
 
 const GENERATE_IMAGE_PROMPT_SYSTEM = `Based on this article title and content, generate a detailed image description for a professional blog cover image. The image should be modern, professional, and related to security/technology. Describe the scene, colors, style, and mood. Keep it under 100 words. Return only the description, nothing else.`;
 
-const DISCOVER_TOPICS_SYSTEM = (companyName: string) =>
-  `You are a content strategist for ${companyName}. Generate 6 trending article ideas in the physical security and home/business security industry. Focus on topics relevant to alarm systems, CCTV, access control, and monitoring services. For each idea provide: title, one-sentence description, why it's trending now, suggested category (from the standard categories), and reader interest level (high/medium/low). If a focus area is given, prioritize that. Respond in valid JSON only, no markdown fences: { "topics": [{ "title": "...", "description": "...", "why_trending": "...", "category": "...", "interest": "high" }] }`;
+/** Google Search grounding tool for real web data (trending topics, article research). */
+const GOOGLE_SEARCH_TOOL = [{ googleSearchRetrieval: {} }] as const;
 
-const GENERATE_FROM_TOPIC_SYSTEM = (title: string, description: string, category: string) =>
-  `Write a complete blog article with this exact title: '${title}'. Cover this: ${description}. Category: ${category}. Use proper markdown with ## headings, **bold**, clear sections. Write 800-1200 words. Include introduction, multiple sections, and a conclusion with call to action.`;
+function buildDiscoverTopicsSystemPrompt(settings: AppSettings, focus: string | undefined): string {
+  const categoriesList =
+    settings.categories?.length > 0
+      ? settings.categories.join(", ")
+      : "threat-intel, technology, company-news, guides, security-tips, industry-trends";
+  return `You are a content strategist for ${settings.company_name}.
+
+USE YOUR WEB SEARCH CAPABILITY to find REAL, CURRENT trending topics in the physical security, home security, business security, alarm systems, CCTV, and access control industry.
+
+Search for:
+- Recent security news and incidents (last 30 days)
+- New security technology announcements
+- Security industry trends and reports
+- Government regulations or advisories about security
+- Recent cyber-physical security threats
+- Smart home security developments
+
+${focus ? `Focus especially on: ${focus}` : ""}
+
+Based on your web search results, generate 6 article ideas that ${settings.company_name} could write about. Each topic must be based on REAL, CURRENT events or trends you found — not imagined topics.
+
+For each, provide:
+1. A compelling article title (written for ${settings.company_name}'s blog)
+2. A one-sentence description of what the article would cover
+3. Why it's trending or timely RIGHT NOW (reference the real event/news)
+4. Suggested category (one of: ${categoriesList})
+5. Reader interest level: high, medium, or low
+6. Source URL where you found this trending topic
+
+Respond in valid JSON only, no markdown fences:
+{
+  "topics": [
+    {
+      "title": "...",
+      "description": "...",
+      "why_trending": "...",
+      "category": "...",
+      "interest": "high",
+      "source_url": "https://..."
+    }
+  ]
+}`;
+}
 
 async function fetchUrlContent(url: string): Promise<string> {
   const res = await fetch(url, {
@@ -276,22 +317,27 @@ export async function POST(request: Request) {
 
     if (action === "discover_topics") {
       const { focus } = (payload || {}) as { focus?: string };
-      const systemInstruction =
-        systemPrefix +
-        DISCOVER_TOPICS_SYSTEM(settings.company_name) +
-        (focus && ["residential", "commercial", "cybersecurity", "industry"].includes(focus)
-          ? ` Focus area: ${focus}.`
-          : "");
+      const systemInstruction = systemPrefix + buildDiscoverTopicsSystemPrompt(settings, focus);
       const geminiModel = genAI.getGenerativeModel({
         model: modelId,
         systemInstruction,
+        tools: [...GOOGLE_SEARCH_TOOL],
       });
       const userPrompt = focus
-        ? `Generate 6 trending article ideas. Focus area: ${focus}.`
-        : "Generate 6 trending article ideas.";
+        ? `Use web search to find real, current trending topics, then generate 6 article ideas. Focus area: ${focus}.`
+        : "Use web search to find real, current trending topics in security, then generate 6 article ideas.";
       const result = await geminiModel.generateContent(userPrompt);
       const raw = result.response.text().trim();
-      let json: { topics?: Array<{ title?: string; description?: string; why_trending?: string; category?: string; interest?: string }> };
+      let json: {
+        topics?: Array<{
+          title?: string;
+          description?: string;
+          why_trending?: string;
+          category?: string;
+          interest?: string;
+          source_url?: string;
+        }>;
+      };
       try {
         json = JSON.parse(raw.replace(/^```\w*\n?|\n?```$/g, "").trim());
       } catch {
@@ -318,11 +364,27 @@ export async function POST(request: Request) {
       }
       const effectiveDesc = typeof description === "string" ? description : "";
       const effectiveCat = typeof topicCategory === "string" ? topicCategory : "technology";
+      const effectiveTone = settings.default_tone || "professional";
       const systemInstruction =
-        systemPrefix + GENERATE_FROM_TOPIC_SYSTEM(topicTitle, effectiveDesc, effectiveCat);
+        systemPrefix +
+        `Use web search to find real, accurate information about this topic, then write a complete, professional blog article.
+
+Title: "${topicTitle}"
+Topic: ${effectiveDesc}
+Category: ${effectiveCat}
+
+Requirements:
+- Research this topic using web search for accurate, current information
+- Write 800-1200 words
+- Use proper markdown with ## headings, **bold**, clear sections
+- Include introduction, multiple detailed sections, conclusion with call to action
+- Tone: ${effectiveTone}
+- All facts must be accurate and current
+- Do NOT include source URLs or citations in the article body`;
       const geminiModel = genAI.getGenerativeModel({
         model: modelId,
         systemInstruction,
+        tools: [...GOOGLE_SEARCH_TOOL],
       });
       const userPrompt = `Write the article now.`;
       const result = await geminiModel.generateContent(userPrompt);
