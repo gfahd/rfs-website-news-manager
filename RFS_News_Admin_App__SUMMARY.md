@@ -10,8 +10,9 @@ This document provides a technical overview of the Red Flag News Admin applicati
 *   **Database**: **Supabase** — PostgreSQL for articles and app settings, Supabase Storage for images. GitHub is no longer used as content storage.
 
 ## 2. Technology Stack
-*   **Framework**: Next.js 16 (App Router)
+*   **Framework**: Next.js 16.1.6 (App Router)
 *   **Language**: TypeScript
+*   **React**: React 19.2.3
 *   **Styling**: Tailwind CSS 4
 *   **Authentication**: NextAuth.js (Google OAuth, restricted to specific email domains)
 *   **Data Layer**: **Supabase** (via `@supabase/supabase-js`) — articles and settings in PostgreSQL, images in Storage
@@ -27,7 +28,7 @@ Content and app configuration live in **Supabase**, not in a GitHub repository.
 
 ### Settings
 *   **Location**: Supabase PostgreSQL table `settings`, single row with `id = "global"`.
-*   **Structure**: `AppSettings` includes company info (`company_name`, `company_description`, `website_url`, `default_author`), AI defaults (`default_model`, `default_tone`, `default_article_length`, `ai_models` as array of `{ value, label }`), AI instructions and constraints (`ai_instructions`, `ai_forbidden_topics`, `ai_forbidden_companies`), `ai_link_policy` (`internal_only` | `no_links` | `allow_all`), and content organization (`seo_default_keywords`, `categories`).
+*   **Structure**: `AppSettings` includes company info (`company_name`, `company_description`, `website_url`, `default_author`), AI defaults (`default_model`, `default_tone`, `default_article_length`, `ai_models` as array of `{ value, label }`), AI instructions and constraints (`ai_instructions`, `ai_forbidden_topics`, `ai_forbidden_companies`), `ai_link_policy` (`internal_only` | `no_links` | `allow_all`), content organization (`seo_default_keywords`, `categories`), and **discovery_categories** (array of strings used as default focus for Discover Topics when mode is "auto").
 *   **Logic**: `src/lib/settings.ts` (server) — `getSettings()`, `updateSettings(updates)`; upsert by `id`. Types and client-safe helpers in `src/lib/settings-client.ts` (no Supabase import). API: `GET /api/settings` and `PUT /api/settings` (auth required).
 
 ### Images
@@ -55,10 +56,11 @@ Content and app configuration live in **Supabase**, not in a GitHub repository.
 4.  **Success message**: After publish/update, the articles list shows a banner: “Article saved to the database” and notes that the live site may update automatically or after a rebuild depending on setup.
 
 ## 5. AI & Settings Integration
-*   **`/api/ai`** (POST): Uses `getSettings()` to build a **system prompt prefix** (company name/description, website URL, IMPORTANT INSTRUCTIONS, forbidden competitors/topics, link policy). This prefix is prepended to every AI action: **generate_article**, **improve_text**, **generate_metadata**, **extract_from_url**, **generate_image_prompt** (text description for cover images), **discover_topics** (trending topics with optional focus: Residential, Commercial, Cybersecurity, Industry), and **generate_from_topic** (write article from a discovered topic). Default tone and article length come from settings when the request does not specify them. **discover_topics** uses Google Search grounding for real, current trending content.
+*   **`/api/ai`** (POST): Uses `getSettings()` to build a **system prompt prefix** (company name/description, website URL, IMPORTANT INSTRUCTIONS, forbidden competitors/topics, link policy). This prefix is prepended to every AI action: **generate_article**, **improve_text**, **generate_metadata**, **extract_from_url**, **generate_image_prompt** (text description for cover images), **discover_topics** (trending topics with optional focus), and **generate_from_topic** (write article from a discovered topic). Default tone and article length come from settings when the request does not specify them.
+*   **discover_topics**: Uses **real headlines from Google News RSS feeds** via `fetchSecurityNews()` in `src/lib/news-feeds.ts` (no API key; public RSS). Modes: **auto** (uses `settings.discovery_categories` if set, else built-in security terms), **categories** (payload categories), **keyword** (payload keyword). Headlines are passed to Gemini to generate 6 article ideas with title, description, why_trending, category, interest, source.
 *   **Allowed models**: Resolved from `settings.ai_models`; request `model` must be in that list or fallback to `default_model` / first entry. Model IDs are flexible (e.g. any `gemini-*`-style ID can be added in Settings).
-*   **Settings page**: Single “Add model” field (model ID string); adding pushes to `ai_models` (value and label both set to the ID) and sets it as default. Default model dropdown is populated from `ai_models`. No separate display-name field; models are not listed in full on the page, only in the dropdown.
-*   **AI Image Generation**: **`/api/ai/image`** (POST): Uses **Gemini 2.5 Flash Image** (via `@google/genai`, `GEMINI_IMAGE_MODEL` env) for generate and edit. Settings (company name, ai_instructions) are used to build image prompts. **`/api/ai/image/save`** (POST): Accepts base64 image data and uploads to Supabase Storage via `uploadImage`, returns public URL for use as cover image.
+*   **Settings page**: Single “Add model” field (model ID string); adding pushes to `ai_models` (value and label both set to the ID) and sets it as default. Default model dropdown is populated from `ai_models`. **Discovery categories** can be configured for topic discovery focus. No separate display-name field for models; models are not listed in full on the page, only in the dropdown.
+*   **AI Image Generation**: **`/api/ai/image`** (POST): Uses Gemini image models (e.g. **gemini-2.5-flash-image**, **gemini-3-pro-image-preview** via `@google/genai`; model chosen from text-model mapping or request). Settings (company name, ai_instructions) are used to build image prompts. **`/api/ai/image/save`** (POST): Accepts base64 image data and uploads to Supabase Storage via `uploadImage`, returns public URL for use as cover image.
 
 ## 6. Article Page UX (New & Edit)
 *   **Layout**: Three-zone design — **EditorToolbar** (title “New Article” / “Edit Article”, view mode edit/preview, model selector, Save Draft, status), main editor column (collapsible sections), and **ArticleSettings** sidebar (category, published date, tags, SEO keywords, author, featured, delete on edit). Same structure for `src/app/articles/new/page.tsx` and `src/app/articles/[slug]/page.tsx`. Layout is responsive (e.g. sidebar and two-column editor/settings stack on smaller screens via Tailwind `lg:` breakpoints).
@@ -68,11 +70,18 @@ Content and app configuration live in **Supabase**, not in a GitHub repository.
 *   **AI cover image**: **AIImageGenerator** uses `/api/ai` for **generate_image_prompt** from title/content, then `/api/ai/image` to generate (or edit) an image, and `/api/ai/image/save` to persist to Storage and set as cover.
 *   **Save Draft**: Toolbar “Save Draft” and keyboard shortcut Ctrl/Cmd+S call **handleSaveDraft**; the event parameter is optional (e.g. when invoked from keyboard), so `e?.preventDefault()` is used. Ctrl/Cmd+Enter submits the form (publish).
 
-## 7. UX: Preserving Input When Switching Windows
+## 7. Global Error Handling
+*   **ErrorContext** (`src/context/ErrorContext.tsx`): Provides `showError(message, details?)` and `dismissError()`. **ErrorProvider** wraps the app (inside `auth-provider.tsx`). **ErrorToast** (`src/components/ui/ErrorToast.tsx`): Fixed bottom-right toast with message, optional expandable details, copy-to-clipboard, and dismiss. Used by article pages (new/edit), settings page, and **AIImageGenerator** for save/upload/AI failures.
+
+## 8. UX: Preserving Input When Switching Windows
 *   **Session**: `SessionProvider` uses `refetchOnWindowFocus={false}` so that returning to the tab does not refetch the session and trigger data-load effects that overwrite form state.
 *   **Data load once per visit**: Settings, article edit, new article, dashboard, articles list, and media pages use a “loaded once” ref so that initial data fetch (settings, article, images, articles list) runs only once when the session is ready. Switching to another window and back no longer causes a refetch that wipes typed content.
 
-## 8. Key Environment Variables
+## 9. Dashboard & Articles List
+*   **Dashboard** (`src/app/dashboard/page.tsx`): Stats (Total Articles, Published, Drafts, Categories), **draft alert** with link to `/articles?status=draft`, quick actions ("Create with AI", "Media Library"), and recent articles (sorted by date, with Edit links).
+*   **Articles list** (`src/app/articles/page.tsx`): **Status filter** (all / published / draft), including from URL `?status=draft`. **Search** by title/excerpt, **category filter**, **sort** (Newest, Oldest, Recently updated, A–Z). Category badges with fixed styles. Row actions: Edit, Delete; bulk/table UX.
+
+## 10. Key Environment Variables
 Stored in `.env.local`:
 
 *   **Supabase (required for content and settings)**  
@@ -87,19 +96,25 @@ Stored in `.env.local`:
     *   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, etc.
 
 *   **AI (optional)**  
-    *   `GEMINI_API_KEY`: For AI features in the admin (e.g. generate article, metadata, improve text).
+    *   `GEMINI_API_KEY`: For AI features in the admin (text and image generation).
 
-## 9. Codebase Context
+## 11. Codebase Context
 *   **`src/lib/supabase.ts`**: Main data layer. Supabase clients (`supabaseAdmin`, `supabasePublic`), article CRUD, `articleToFrontend`, image upload/list (`uploadImage`, `getImages`), `triggerWebsiteRebuild`, `generateSlug`.
 *   **`src/lib/settings.ts`**: Server-only. Reads/writes Supabase `settings` table (id = global). `getSettings()`, `updateSettings(updates)`, defaults and normalizers. Do not import from client components.
-*   **`src/lib/settings-client.ts`**: Client-safe. `AppSettings`, `AIModelOption`, `GEMINI_MODEL_KEY`, `GEMINI_MODEL_DEFAULT`, `getStoredGeminiModel()`, `getAiModelsCache()`. No Supabase.
-*   **`src/components/layout/auth-provider.tsx`**: Wraps app in `SessionProvider` with `refetchOnWindowFocus={false}`.
+*   **`src/lib/settings-client.ts`**: Client-safe. `AppSettings`, `AIModelOption`, `GEMINI_MODEL_KEY`, `GEMINI_MODEL_DEFAULT`, `getStoredGeminiModel()`, `getAiModelsCache()`, `setAiModelsCache()`. No Supabase.
+*   **`src/lib/news-feeds.ts`**: Fetches security news headlines from **Google News RSS** (no API key). `fetchSecurityNews({ mode, categories?, keyword? })` returns `NewsHeadline[]`; used by `/api/ai` for **discover_topics**.
+*   **`src/lib/github.ts`**: Placeholder; rebuild trigger lives in `supabase.ts` (`triggerWebsiteRebuild`).
+*   **`src/components/layout/auth-provider.tsx`**: Wraps app in `SessionProvider` with `refetchOnWindowFocus={false}` and **ErrorProvider**.
+*   **`src/context/ErrorContext.tsx`**: `ErrorProvider`, `useError()`; global `showError`/`dismissError` for **ErrorToast**.
+*   **`src/components/ui/ErrorToast.tsx`**: Toast UI (message, optional details, copy, dismiss).
 *   **`src/app/api/settings/route.ts`**: GET returns `{ settings }`, PUT accepts partial updates and returns `{ success, settings }`; both require auth.
 *   **`src/app/api/articles/`**, **`src/app/api/articles/[slug]/`**: Use Supabase for list/get/create/update/delete; return data in frontend shape via `articleToFrontend`.
 *   **`src/app/api/images/`**, **`src/app/api/upload/`**: Use Supabase Storage for listing and uploading images.
 *   **`src/app/api/ai/route.ts`**: Loads settings, builds system prompt prefix, applies default tone/length and allowed models; handles generate_article, improve_text, generate_metadata, extract_from_url, generate_image_prompt, discover_topics, generate_from_topic.
-*   **`src/app/api/ai/image/route.ts`**: AI image generate/edit via Gemini 2.5 Flash Image (`@google/genai`); uses settings for prompt context. Env: `GEMINI_IMAGE_MODEL` (optional).
+*   **`src/app/api/ai/image/route.ts`**: AI image generate/edit via Gemini image models (`@google/genai`; model from request or text-model mapping); uses settings for prompt context. Same `GEMINI_API_KEY` as text AI.
 *   **`src/app/api/ai/image/save/route.ts`**: Accepts base64 image from client, uploads via `uploadImage` to Supabase Storage, returns `{ url }`.
-*   **Article pages**: **`src/app/articles/new/page.tsx`** and **`src/app/articles/[slug]/page.tsx`** share the three-zone layout; Edit adds delete and draft status. Key components: **EditorToolbar**, **CollapsibleSection**, **ContentEditor**, **CoverImagePicker**, **AIToolsPanel**, **ArticleSettings**, **ArticlePreview**, **AIImageGenerator**. Save-draft handler uses optional event (`e?.preventDefault()`) for keyboard shortcut compatibility.
-*   **`src/app/settings/page.tsx`**: Full settings UI (company, AI defaults including add-model and default model, AI instructions, link policy, categories/SEO, danger zone reset). Loads once per visit via ref to avoid losing input when switching windows.
+*   **Article pages**: **`src/app/articles/new/page.tsx`** and **`src/app/articles/[slug]/page.tsx`** share the three-zone layout; Edit adds delete and draft status. Key components: **EditorToolbar**, **CollapsibleSection**, **ContentEditor**, **CoverImagePicker**, **AIToolsPanel**, **ArticleSettings**, **ArticlePreview**, **AIImageGenerator**. Save-draft handler uses optional event (`e?.preventDefault()`) for keyboard shortcut compatibility. Errors surfaced via `useError().showError()`.
+*   **`src/app/settings/page.tsx`**: Full settings UI (company, AI defaults including add-model and default model, discovery categories, AI instructions, link policy, categories/SEO, danger zone reset). Loads once per visit via ref to avoid losing input when switching windows.
+*   **Root layout** (`src/app/layout.tsx`): Metadata title "Red Flag Security - RFS Content Manager", description "News & Insights Admin Panel"; dark theme; **AuthProvider** wraps children.
+*   **Supabase migrations**: Optional SQL in `supabase/migrations/` (e.g. `20250208000000_add_ai_models_to_settings.sql` for `ai_models` column). Run in Supabase Dashboard if needed.
 *   **Auth**: NextAuth with existing config; session not refetched on window focus.
