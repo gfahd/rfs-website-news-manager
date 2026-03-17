@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     "Fire & Life Safety",
     "Cybersecurity",
   ],
+  allowed_login_emails: [],
 };
 
 function parseAiModelsRaw(raw: unknown): unknown[] {
@@ -112,6 +113,9 @@ function normalizeRow(row: Record<string, unknown> | null): AppSettings {
     discovery_categories: Array.isArray(row.discovery_categories)
       ? (row.discovery_categories as string[]).filter((x) => typeof x === "string")
       : DEFAULT_SETTINGS.discovery_categories,
+    allowed_login_emails: Array.isArray(row.allowed_login_emails)
+      ? (row.allowed_login_emails as string[]).filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().toLowerCase())
+      : DEFAULT_SETTINGS.allowed_login_emails,
   };
 }
 
@@ -141,6 +145,13 @@ export async function updateSettings(updates: Partial<Omit<AppSettings, "id">>):
   // Persist ai_models as string[] (model ids only) in the DB
   if (Array.isArray(payload.ai_models)) {
     payload.ai_models = (payload.ai_models as AIModelOption[]).map((m) => (typeof m === "object" && m && "value" in m ? m.value : String(m))).filter(Boolean);
+  }
+
+  // Normalize allowed_login_emails to lowercase strings for storage
+  if (Array.isArray(payload.allowed_login_emails)) {
+    payload.allowed_login_emails = (payload.allowed_login_emails as string[])
+      .map((e) => String(e).trim().toLowerCase())
+      .filter(Boolean);
   }
 
   const { data, error } = await supabaseAdmin

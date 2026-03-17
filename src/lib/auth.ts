@@ -1,12 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-
-// Add allowed emails here
-const ALLOWED_EMAILS = [
-  "info@redflagsecurity.ca",
-  "georges.fahd@gmail.com",
-  // Add more emails as needed
-];
+import { getSettings } from "./settings";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -17,12 +11,13 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user }) {
-      // Check if user's email is in allowed list
-      if (user.email && ALLOWED_EMAILS.includes(user.email.toLowerCase())) {
-        return true;
-      }
-      // Deny access
-      return false;
+      const email = user.email?.trim().toLowerCase();
+      if (!email) return false;
+      const settings = await getSettings();
+      const allowed = Array.isArray(settings.allowed_login_emails) && settings.allowed_login_emails.length > 0
+        ? settings.allowed_login_emails.map((e) => e.trim().toLowerCase()).filter(Boolean)
+        : ["info@redflagsecurity.ca", "georges.fahd@gmail.com"];
+      return allowed.includes(email);
     },
     async session({ session }) {
       return session;

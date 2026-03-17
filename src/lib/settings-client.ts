@@ -62,4 +62,5 @@ export interface AppSettings {
   seo_default_keywords: string[];
   categories: string[];
   discovery_categories: string[];
+  allowed_login_emails: string[];
 }

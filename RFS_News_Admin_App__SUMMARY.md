@@ -28,7 +28,7 @@ Content and app configuration live in **Supabase**, not in a GitHub repository.
 
 ### Settings
 *   **Location**: Supabase PostgreSQL table `settings`, single row with `id = "global"`.
-*   **Structure**: `AppSettings` includes company info (`company_name`, `company_description`, `website_url`, `default_author`), AI defaults (`default_model`, `default_tone`, `default_article_length`, `ai_models` as array of `{ value, label }`), AI instructions and constraints (`ai_instructions`, `ai_forbidden_topics`, `ai_forbidden_companies`), `ai_link_policy` (`internal_only` | `no_links` | `allow_all`), content organization (`seo_default_keywords`, `categories`), and **discovery_categories** (array of strings used as default focus for Discover Topics when mode is "auto").
+*   **Structure**: `AppSettings` includes company info (`company_name`, `company_description`, `website_url`, `default_author`), AI defaults (`default_model`, `default_tone`, `default_article_length`, `ai_models` as array of `{ value, label }`), AI instructions and constraints (`ai_instructions`, `ai_forbidden_topics`, `ai_forbidden_companies`), `ai_link_policy` (`internal_only` | `no_links` | `allow_all`), content organization (`seo_default_keywords`, `categories`), **discovery_categories** (array of strings used as default focus for Discover Topics when mode is "auto"), and **allowed_login_emails** (array of Google account emails that can sign in to the CMS; managed on the Settings page).
 *   **Logic**: `src/lib/settings.ts` (server) — `getSettings()`, `updateSettings(updates)`; upsert by `id`. Types and client-safe helpers in `src/lib/settings-client.ts` (no Supabase import). API: `GET /api/settings` and `PUT /api/settings` (auth required).
 
 ### Images

@@ -67,6 +67,7 @@ const DEFAULT_SETTINGS: Omit<AppSettings, "id"> = {
     "Fire & Life Safety",
     "Cybersecurity",
   ],
+  allowed_login_emails: [],
 };
 
 function settingsToForm(s: AppSettings | undefined): Omit<AppSettings, "id"> | null {
@@ -137,6 +138,9 @@ function settingsToForm(s: AppSettings | undefined): Omit<AppSettings, "id"> | n
     discovery_categories: Array.isArray((s as { discovery_categories?: string[] }).discovery_categories)
       ? (s as { discovery_categories: string[] }).discovery_categories
       : DEFAULT_SETTINGS.discovery_categories,
+    allowed_login_emails: Array.isArray((s as { allowed_login_emails?: string[] }).allowed_login_emails)
+      ? (s as { allowed_login_emails: string[] }).allowed_login_emails
+      : DEFAULT_SETTINGS.allowed_login_emails,
   };
 }
 
@@ -673,6 +677,24 @@ export default function SettingsPage() {
             <div className="border-t border-slate-700 pt-2">
               <p className="text-sm text-slate-500 mb-2">CMS &amp; Admin settings (below)</p>
             </div>
+
+            {/* Section — Allowed login emails */}
+            <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                Allowed login emails
+              </h2>
+              <p className="text-sm text-slate-400 mb-4">
+                Only these Google account emails can sign in to the CMS. Add or remove addresses below.
+              </p>
+              <div>
+                <label className="text-sm font-medium text-slate-300 mb-1 block">Allowed emails</label>
+                <TagInput
+                  values={form.allowed_login_emails}
+                  onChange={(v) => update({ allowed_login_emails: v })}
+                  placeholder="Add email (e.g. user@example.com)"
+                />
+              </div>
+            </section>
 
             {/* Section 1 — Company Information */}
             <section className="bg-slate-900 rounded-xl p-6 border border-slate-800">

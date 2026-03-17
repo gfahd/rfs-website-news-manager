@@ -49,7 +49,7 @@ All config is via **environment variables**. Use a `.env.local` in the project r
 | `NEXTAUTH_URL` | Yes (prod) | Full app URL (e.g. `https://admin.redflagsecurity.ca`) |
 | `NEXTAUTH_SECRET` | Yes (prod) | Secret for signing sessions |
 
-- **Auth allowlist**: Allowed Google emails are hardcoded in `src/lib/auth.ts` in the `ALLOWED_EMAILS` array. To add users, add emails there.
+- **Auth allowlist**: Allowed Google emails are stored in Supabase `settings.allowed_login_emails` and managed on the **Settings** page (Allowed login emails). Add or remove emails there; no code deploy needed.
 - **GitHub branch**: The app uses the `main` branch (see `BRANCH` in `src/lib/github.ts`).
 
 ---
@@ -78,7 +78,7 @@ src/
 │   ├── auth-provider.tsx        # SessionProvider wrapper
 │   └── sidebar.tsx              # Nav + user + sign out
 └── lib/
-    ├── auth.ts                  # NextAuth config, Google provider, ALLOWED_EMAILS
+    ├── auth.ts                  # NextAuth config, Google provider; signIn checks settings.allowed_login_emails
     └── github.ts                # All GitHub operations (articles, images)
 ```
 
@@ -89,7 +89,7 @@ src/
 1. **Unauthenticated**  
    - User hits `/` (login page).  
    - Clicks “Sign in with Google” → NextAuth redirects to Google.  
-   - On return, `signIn` callback in `src/lib/auth.ts` checks `user.email` against `ALLOWED_EMAILS`.  
+   - On return, `signIn` callback in `src/lib/auth.ts` checks `user.email` against `settings.allowed_login_emails` (from Supabase).  
    - If allowed → session created, redirect to `/dashboard`.  
    - If not → access denied, stays on `/`.
 
@@ -194,7 +194,7 @@ All these API routes require an authenticated session (NextAuth); otherwise they
 
 | Change | Location |
 |--------|----------|
-| Allowed login emails | `src/lib/auth.ts` → `ALLOWED_EMAILS` |
+| Allowed login emails | Settings page → Allowed login emails (stored in Supabase `settings.allowed_login_emails`) |
 | GitHub repo/branch | `src/lib/github.ts` → `OWNER`, `REPO`, `BRANCH` |
 | Article frontmatter fields | `src/lib/github.ts` (`parseArticle`, `saveArticle`), API routes that build markdown |
 | Categories list | Articles list + New/Edit article pages (categories arrays) |
