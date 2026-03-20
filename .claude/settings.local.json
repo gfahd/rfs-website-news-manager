@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head -300 /c/Cursor/rfs-cms/src/app/articles/[slug]/page.tsx)",
+      "Bash(ls -la /c/Cursor/rfs-cms/src/app/*.css)"
+    ]
+  }
+}
